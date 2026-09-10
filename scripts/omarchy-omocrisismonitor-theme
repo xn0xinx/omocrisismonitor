@@ -1,0 +1,88 @@
+#!/usr/bin/env python3
+"""Generate omocrisismonitor's CSS theme from the current Omarchy theme.
+
+Writes --omo-* custom properties to ~/.config/omocrisismonitor/theme.css. Mirrors the
+other omarchy-*-theme generators (golive, obs, halloy, vesktop, reaper).
+"""
+from __future__ import annotations
+import os, subprocess, sys, tomllib
+from pathlib import Path
+
+ARGS = dict(zip(sys.argv[1::2], sys.argv[2::2]))
+STATE = Path.home() / ".local/state/omarchy/current"
+COLORS = Path(ARGS.get("--colors") or STATE / "theme" / "colors.toml")
+NAME_FILE = STATE / "theme.name"
+_cfg = os.environ.get("XDG_CONFIG_HOME", str(Path.home() / ".config"))
+OUT = Path(ARGS.get("--out") or Path(_cfg) / "omocrisismonitor" / "theme.css")
+
+
+def load_palette() -> dict[str, str]:
+    if not COLORS.is_file():
+        sys.exit(f"omarchy-omocrisismonitor-theme: no colors.toml at {COLORS}")
+    try:
+        out = subprocess.run(
+            ["omarchy-theme-color", "--file", str(COLORS), "--all"],
+            capture_output=True, text=True, check=True,
+        ).stdout
+        p = {}
+        for line in out.splitlines():
+            if "\t" in line:
+                k, _, v = line.partition("\t")
+                p[k.strip()] = v.strip()
+        if p:
+            return p
+    except (FileNotFoundError, subprocess.CalledProcessError):
+        pass
+    return {k: str(v) for k, v in tomllib.loads(COLORS.read_text("utf-8")).items()}
+
+
+def pick(p, *keys, default="#000000"):
+    for k in keys:
+        if p.get(k):
+            return p[k]
+    return default
+
+
+def build_css(p) -> str:
+    mode = pick(p, "mode", "theme_type", default="dark").lower()
+    is_dark = mode != "light"
+    name = NAME_FILE.read_text("utf-8").strip() if NAME_FILE.is_file() else "unknown"
+    v = {
+        "--omo-bg": pick(p, "darker_background", "dark_background", "background", default="#16161e"),
+        "--omo-surface": pick(p, "background", "dark_background", default="#1a1b26"),
+        "--omo-surface-2": pick(p, "dark_background", "lighter_background", "background", default="#21232f"),
+        "--omo-border": pick(p, "muted", "selection_background", "selection", default="#3b3f51"),
+        "--omo-fg": pick(p, "foreground", "bright_foreground", default="#c0caf5"),
+        "--omo-dim": pick(p, "light_foreground", "dark_foreground", "muted", default="#565f89"),
+        "--omo-accent": pick(p, "accent", "blue", "cyan", default="#7aa2f7"),
+        "--omo-ok": pick(p, "green", "bright_green", default="#9ece6a"),
+        "--omo-warn": pick(p, "yellow", "bright_yellow", "orange", default="#e0af68"),
+        "--omo-err": pick(p, "red", "bright_red", default="#f7768e"),
+        "--omo-info": pick(p, "cyan", "bright_cyan", "blue", default="#7dcfff"),
+        "--omo-blue": pick(p, "blue", "bright_blue", default="#7aa2f7"),
+        "--omo-cyan": pick(p, "cyan", "bright_cyan", default="#7dcfff"),
+        "--omo-green": pick(p, "green", "bright_green", default="#9ece6a"),
+        "--omo-magenta": pick(p, "magenta", "purple", "bright_magenta", default="#bb9af7"),
+        "--omo-orange": pick(p, "orange", "brown", "yellow", default="#ff9e64"),
+        "--omo-yellow": pick(p, "yellow", "bright_yellow", default="#e0af68"),
+    }
+    lines = [
+        f"/* omocrisismonitor theme - generated from Omarchy theme '{name}'. Do not edit. */",
+        ":root {",
+        f"  color-scheme: {'dark' if is_dark else 'light'};",
+        *[f"  {k}: {val};" for k, val in v.items()],
+        "}",
+        "",
+    ]
+    return "\n".join(lines)
+
+
+def main() -> None:
+    css = build_css(load_palette())
+    OUT.parent.mkdir(parents=True, exist_ok=True)
+    OUT.write_text(css, "utf-8")
+    print(f"omarchy-omocrisismonitor-theme: wrote {OUT}", file=sys.stderr)
+
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,11 @@
+/* omocrisismonitor fallback theme (Tokyo-night). Replaced at runtime by
+   ~/.config/omocrisismonitor/theme.css from omarchy-omocrisismonitor-theme. */
+:root {
+  color-scheme: dark;
+  --omo-bg:#16161e;  --omo-surface:#1a1b26;  --omo-surface-2:#21232f;
+  --omo-border:#3b3f51;  --omo-fg:#c0caf5;  --omo-dim:#565f89;
+  --omo-accent:#7aa2f7;  --omo-ok:#9ece6a;  --omo-warn:#e0af68;
+  --omo-err:#f7768e;  --omo-info:#7dcfff;  --omo-blue:#7aa2f7;
+  --omo-cyan:#7dcfff;  --omo-green:#9ece6a;  --omo-magenta:#bb9af7;
+  --omo-orange:#ff9e64;  --omo-yellow:#e0af68;
+}

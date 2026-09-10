@@ -1,0 +1,4 @@
+#!/bin/bash
+# Regenerate the omocrisismonitor theme whenever the Omarchy theme changes.
+command -v omarchy-omocrisismonitor-theme >/dev/null || exit 0
+omarchy-omocrisismonitor-theme >/dev/null

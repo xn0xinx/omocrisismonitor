@@ -1,0 +1,10 @@
+.venv/
+dist/
+build/
+__pycache__/
+*.pyc
+.pytest_cache/
+*.db
+*.db-*
+config.toml
+*-auth.json
