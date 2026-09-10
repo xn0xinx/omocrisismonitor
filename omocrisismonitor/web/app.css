@@ -84,3 +84,67 @@ body {
 /* fullscreen / cinematic */
 body.fs #topbar, body.fs #statusline { opacity: 0; transition: opacity .3s; }
 body.fs:hover #topbar, body.fs:hover #statusline { opacity: 1; }
+
+/* ---- AIS: status badge (top centre) ------------------------------- */
+.badge {
+  position: fixed; left: 50%; top: 44px; transform: translateX(-50%); z-index: 11;
+  padding: 4px 12px; border-radius: 4px;
+  background: color-mix(in srgb, var(--ocm-surface) 90%, transparent);
+  border: 1px solid var(--ocm-border); color: var(--ocm-dim);
+  font: 600 10px/1 "JetBrainsMono Nerd Font", monospace;
+  letter-spacing: .16em; text-transform: uppercase;
+  backdrop-filter: blur(6px); pointer-events: none;
+}
+.badge.warn { color: var(--ocm-warn); border-color: var(--ocm-warn); }
+.badge.err  { color: var(--ocm-err);  border-color: var(--ocm-err);
+              box-shadow: 0 0 10px color-mix(in srgb, var(--ocm-err) 40%, transparent); }
+
+/* ---- AIS: selection detail (right edge) --------------------------- */
+#detail {
+  position: fixed; right: 12px; top: 46px; z-index: 10;
+  width: 300px; max-height: calc(100% - 46px - 34px); overflow-y: auto;
+  background: color-mix(in srgb, var(--ocm-surface) 92%, transparent);
+  border: 1px solid var(--ocm-border); border-radius: 4px;
+  backdrop-filter: blur(6px);
+  font-size: 12px; letter-spacing: .02em;
+}
+#detail header {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 10px; border-bottom: 1px solid var(--ocm-border);
+  position: sticky; top: 0;
+  background: color-mix(in srgb, var(--ocm-surface) 96%, transparent);
+}
+#detail header .nm {
+  flex: 1 1 auto; font-weight: 700; letter-spacing: .06em;
+  color: var(--ocm-accent); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+#detail header button {
+  flex: none; width: 20px; height: 20px; line-height: 1;
+  background: transparent; border: 1px solid var(--ocm-border); border-radius: 3px;
+  color: var(--ocm-dim); cursor: pointer; font: inherit;
+}
+#detail header button:hover { color: var(--ocm-err); border-color: var(--ocm-err); }
+#detail dl { margin: 0; padding: 4px 10px 8px; }
+#detail dl > div {
+  display: flex; justify-content: space-between; gap: 12px;
+  padding: 4px 0; border-bottom: 1px dashed color-mix(in srgb, var(--ocm-border) 55%, transparent);
+}
+#detail dl > div:last-child { border-bottom: 0; }
+#detail dt {
+  flex: none; color: var(--ocm-dim);
+  font-size: 10px; letter-spacing: .1em; text-transform: uppercase;
+  padding-top: 1px;
+}
+#detail dd {
+  margin: 0; text-align: right; color: var(--ocm-fg);
+  font-variant-numeric: tabular-nums; word-break: break-word;
+}
+#detail .ext {
+  display: block; margin: 2px 10px 10px; padding-top: 8px;
+  border-top: 1px solid var(--ocm-border);
+  color: var(--ocm-accent); font-size: 11px; text-decoration: none; letter-spacing: .06em;
+}
+#detail .ext:hover { text-decoration: underline; }
+
+body.fs #detail { top: 12px; }
+body.fs .badge { top: 12px; }

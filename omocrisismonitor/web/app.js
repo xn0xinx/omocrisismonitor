@@ -1,14 +1,13 @@
-/* OmoCrisisMonitor — Phase 0 shell.
+/* OmoCrisisMonitor — shell + map.
    - loads a MapTiler vector style, recolours it from the --ocm-* theme vars
-   - reconnecting WebSocket to the server (snapshot / theme / ping)
+   - reconnecting WebSocket (snapshot / theme / ping + per-layer events)
    - clock, fullscreen, live view readout
-   Data layers (AIS / conflict / fuel / AI / alerts) land in later phases and
-   hang off `hub` + the #rail buttons. */
+   Layer modules (ais.js, …) attach via window.OCM + the `hub` EventTarget. */
 
 const $ = (s) => document.querySelector(s);
 const hub = new EventTarget();
 
-/* ---- theme -------------------------------------------------------------- */
+/* ---- theme ------------------------------------------------------------- */
 function themeVars() {
   const cs = getComputedStyle(document.documentElement);
   const v = (n, d) => (cs.getPropertyValue(n).trim() || d);
@@ -20,45 +19,14 @@ function themeVars() {
     fg: v("--ocm-fg", "#c0caf5"),
     dim: v("--ocm-dim", "#565f89"),
     accent: v("--ocm-accent", "#7aa2f7"),
+    ok: v("--ocm-ok", "#9ece6a"),
+    warn: v("--ocm-warn", "#e0af68"),
+    err: v("--ocm-err", "#f7768e"),
+    info: v("--ocm-info", "#7dcfff"),
+    magenta: v("--ocm-magenta", "#bb9af7"),
+    orange: v("--ocm-orange", "#ff9e64"),
     water: v("--ocm-surface-2", "#20233a"),
   };
-}
-
-/* Recolour a MapLibre style object in place from the theme. Heuristic by
-   layer id / type — good enough for a dark ops basemap that tracks the OS. */
-function paintStyle(style, t) {
-  const isWater = (id) => /water|ocean|sea|bathymetry/i.test(id);
-  const isLandGreen = (id) => /wood|forest|park|grass|landcover|vegetation/i.test(id);
-  const isBoundary = (id) => /boundary|admin|border/i.test(id);
-  const isRoad = (id) => /road|bridge|tunnel|transit|rail|street|highway|motorway/i.test(id);
-  const isBuilding = (id) => /building/i.test(id);
-
-  for (const l of style.layers || []) {
-    l.paint = l.paint || {};
-    l.layout = l.layout || {};
-    if (l.type === "background") {
-      l.paint["background-color"] = t.bg;
-    } else if (l.type === "fill") {
-      if (isWater(l.id)) l.paint["fill-color"] = t.water;
-      else if (isLandGreen(l.id)) l.paint["fill-color"] = mix(t.surface, t.accent, 0.08);
-      else if (isBuilding(l.id)) l.paint["fill-color"] = t.surface2;
-      else l.paint["fill-color"] = t.surface;
-      l.paint["fill-opacity"] = isBuilding(l.id) ? 0.5 : 0.9;
-      if (l.paint["fill-outline-color"] !== undefined) l.paint["fill-outline-color"] = t.border;
-    } else if (l.type === "line") {
-      l.paint["line-color"] = isBoundary(l.id) ? t.dim : isRoad(l.id) ? t.border : t.border;
-      if (isBoundary(l.id)) { l.paint["line-dasharray"] = [2, 2]; l.paint["line-opacity"] = 0.7; }
-    } else if (l.type === "symbol") {
-      l.paint["text-color"] = /water|marine|ocean/i.test(l.id) ? t.dim : t.fg;
-      l.paint["text-halo-color"] = t.bg;
-      l.paint["text-halo-width"] = 1.4;
-      if (l.paint["icon-color"] !== undefined) l.paint["icon-color"] = t.dim;
-    } else if (l.type === "fill-extrusion") {
-      l.paint["fill-extrusion-color"] = t.surface2;
-      l.paint["fill-extrusion-opacity"] = 0.4;
-    }
-  }
-  return style;
 }
 
 function mix(a, b, amt) {
@@ -67,12 +35,74 @@ function mix(a, b, amt) {
   return `#${c.map((x) => x.toString(16).padStart(2, "0")).join("")}`;
 }
 function hex(s) {
-  const m = s.replace("#", "");
+  const m = String(s).replace("#", "");
   const n = m.length === 3 ? m.split("").map((c) => c + c).join("") : m;
   return [0, 2, 4].map((i) => parseInt(n.slice(i, i + 2), 16) || 0);
 }
 
-/* ---- map -------------------------------------------------------------- */
+/* classify a basemap layer for recolouring */
+function classify(id) {
+  if (/water|ocean|sea|bathymetry/i.test(id)) return "water";
+  if (/wood|forest|park|grass|landcover|vegetation/i.test(id)) return "green";
+  if (/building/i.test(id)) return "building";
+  if (/boundary|admin|border/i.test(id)) return "boundary";
+  if (/road|bridge|tunnel|transit|rail|street|highway|motorway/i.test(id)) return "road";
+  return "land";
+}
+
+/* colours for one basemap layer, given its spec + theme */
+function layerPaint(l, t) {
+  const k = classify(l.id);
+  if (l.type === "background") return { "background-color": t.bg };
+  if (l.type === "fill") {
+    const color = k === "water" ? t.water
+      : k === "green" ? mix(t.surface, t.ok, 0.08)
+      : k === "building" ? t.surface2
+      : t.surface;
+    const p = { "fill-color": color, "fill-opacity": k === "building" ? 0.5 : 0.9 };
+    if ("fill-outline-color" in (l.paint || {})) p["fill-outline-color"] = t.border;
+    return p;
+  }
+  if (l.type === "line") {
+    const p = { "line-color": k === "boundary" ? t.dim : t.border };
+    if (k === "boundary") { p["line-dasharray"] = [2, 2]; p["line-opacity"] = 0.7; }
+    return p;
+  }
+  if (l.type === "symbol") {
+    return {
+      "text-color": /water|marine|ocean/i.test(l.id) ? t.dim : t.fg,
+      "text-halo-color": t.bg,
+      "text-halo-width": 1.4,
+    };
+  }
+  if (l.type === "fill-extrusion") {
+    return { "fill-extrusion-color": t.surface2, "fill-extrusion-opacity": 0.4 };
+  }
+  return {};
+}
+
+function bakeStyle(style, t) {
+  for (const l of style.layers || []) {
+    l.paint = { ...(l.paint || {}), ...layerPaint(l, t) };
+  }
+  return style;
+}
+
+/* live re-tint without setStyle (keeps custom layers/sources intact) */
+function reskinMap() {
+  if (!map || !map.isStyleLoaded()) return;
+  const t = themeVars();
+  for (const l of map.getStyle().layers) {
+    if (l.id.startsWith("ocm-")) continue; // owned by layer modules
+    const p = layerPaint(l, t);
+    for (const [prop, val] of Object.entries(p)) {
+      try { map.setPaintProperty(l.id, prop, val); } catch (e) { /* prop n/a */ }
+    }
+  }
+  hub.dispatchEvent(new CustomEvent("theme-applied", { detail: t }));
+}
+
+/* ---- map ------------------------------------------------------------- */
 let map, boot;
 
 async function initMap() {
@@ -80,55 +110,42 @@ async function initMap() {
   if (!boot) { $("#msg").textContent = "bootstrap failed"; return; }
 
   const { maptiler_key, style, center, zoom } = boot.map;
-  if (!maptiler_key) {
-    $("#msg").textContent = "no MapTiler key in config.toml — map disabled";
-    return;
-  }
-  const styleUrl = `https://api.maptiler.com/maps/${style}/style.json?key=${maptiler_key}`;
+  if (!maptiler_key) { $("#msg").textContent = "no MapTiler key in config.toml — map disabled"; return; }
+
   let styleObj;
   try {
-    styleObj = await fetch(styleUrl).then((r) => r.json());
-  } catch (e) {
-    $("#msg").textContent = "MapTiler style fetch failed";
-    return;
-  }
-  paintStyle(styleObj, themeVars());
+    styleObj = await fetch(
+      `https://api.maptiler.com/maps/${style}/style.json?key=${maptiler_key}`
+    ).then((r) => r.json());
+  } catch (e) { $("#msg").textContent = "MapTiler style fetch failed"; return; }
+  bakeStyle(styleObj, themeVars());
 
   map = new maplibregl.Map({
-    container: "map",
-    style: styleObj,
-    center, // [lng, lat]
-    zoom,
-    attributionControl: { compact: true },
-    hash: false,
+    container: "map", style: styleObj, center, zoom,
+    attributionControl: { compact: true }, hash: false,
   });
   map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "bottom-right");
-  map.on("load", () => { $("#msg").textContent = "map ready"; $("#phase").textContent = "phase 0 · shell"; });
-  map.on("moveend", updateViewInfo);
-  map.on("error", (e) => console.warn("map:", e && e.error));
-}
-
-function reskinMap() {
-  if (!map || !map.isStyleLoaded()) return;
-  const t = themeVars();
-  const s = paintStyle(map.getStyle(), t);
-  map.setStyle(s, { diff: false });
+  map.on("load", () => {
+    $("#msg").textContent = "map ready";
+    updateViewInfo();
+    hub.dispatchEvent(new Event("map-ready"));
+  });
+  map.on("moveend", () => { updateViewInfo(); hub.dispatchEvent(new Event("view-changed")); });
+  map.on("error", (e) => console.warn("map:", e && e.error && e.error.message));
 }
 
 function updateViewInfo() {
   if (!map) return;
   const c = map.getCenter();
-  $("#viewinfo").textContent =
-    `${c.lat.toFixed(2)}, ${c.lng.toFixed(2)}  z${map.getZoom().toFixed(1)}`;
+  $("#viewinfo").textContent = `${c.lat.toFixed(2)}, ${c.lng.toFixed(2)}  z${map.getZoom().toFixed(1)}`;
 }
 
-/* ---- websocket ------------------------------------------------------- */
+/* ---- websocket ----------------------------------------------------- */
 function connect() {
   const proto = location.protocol === "https:" ? "wss" : "ws";
   const ws = new WebSocket(`${proto}://${location.host}/ws`);
   const conn = $("#conn");
   const set = (state, text) => { conn.dataset.state = state; conn.querySelector("span").textContent = text; };
-
   set("wait", "link");
   ws.onopen = () => set("ok", "live");
   ws.onclose = () => { set("down", "down"); setTimeout(connect, 2000); };
@@ -136,7 +153,7 @@ function connect() {
   ws.onmessage = (ev) => {
     let m; try { m = JSON.parse(ev.data); } catch { return; }
     if (m.type === "theme") reloadTheme();
-    else if (m.type === "ping") { /* keepalive */ }
+    else if (m.type === "ping" || m.type === "snapshot") { /* noop */ }
     else hub.dispatchEvent(new CustomEvent(m.type, { detail: m }));
   };
 }
@@ -148,33 +165,36 @@ function reloadTheme() {
     u.searchParams.set("v", Date.now());
     link.href = u.pathname + u.search;
   }
-  // give the new sheet a tick to apply, then repaint the map
-  setTimeout(reskinMap, 120);
+  setTimeout(reskinMap, 140);
   $("#msg").textContent = "theme reloaded";
 }
 
-/* ---- chrome -------------------------------------------------------- */
-function clock() {
-  const t = new Date();
-  $("#clock").textContent = t.toTimeString().slice(0, 8);
-}
+/* ---- chrome ------------------------------------------------------ */
+function clock() { $("#clock").textContent = new Date().toTimeString().slice(0, 8); }
 
 function toggleFullscreen() {
   document.body.classList.toggle("fs");
   if (!document.fullscreenElement) document.documentElement.requestFullscreen?.().catch(() => {});
   else document.exitFullscreen?.();
 }
-
 document.addEventListener("keydown", (e) => {
   if (e.target.matches("input, textarea, select")) return;
   if (e.key === "f" || e.key === "F") toggleFullscreen();
+  if (e.key === "Escape") hub.dispatchEvent(new Event("dismiss"));
 });
 $("#full").addEventListener("click", toggleFullscreen);
 document.addEventListener("fullscreenchange", () => {
   if (!document.fullscreenElement) document.body.classList.remove("fs");
 });
 
-/* ---- go ----------------------------------------------------------- */
+/* ---- expose for layer modules -------------------------------------- */
+window.OCM = {
+  get map() { return map; },
+  get boot() { return boot; },
+  hub, themeVars, mix,
+};
+
+/* ---- go ---------------------------------------------------------- */
 clock(); setInterval(clock, 1000);
 connect();
 initMap().then(() => { if (boot?.ui?.start_fullscreen) toggleFullscreen(); });

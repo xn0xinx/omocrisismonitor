@@ -1,6 +1,7 @@
 """FastAPI app: serves the map window, a WebSocket event stream, and a small
-REST surface. Phase 0 wires the shell — the map, theme sync, health. Data
-layers (AIS / conflict / fuel / AI) attach to the same hub in later phases.
+REST surface. Phase 0 wired the shell (map, theme sync, health); Phase 1 adds
+the AIS service + `/api/view` / `/api/vessel`. Later layers (conflict / fuel /
+AI) attach to the same hub.
 """
 from __future__ import annotations
 
@@ -12,15 +13,16 @@ from importlib.resources import files
 from pathlib import Path
 from types import SimpleNamespace
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
+from fastapi import Body, FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi.responses import HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from . import db
+from .ais import AisService
 from .config import config_path, db_path
 
 WEB = files("omocrisismonitor").joinpath("web")
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 
 class Hub:
@@ -81,13 +83,16 @@ def create_app(cfg: SimpleNamespace) -> FastAPI:
     @contextlib.asynccontextmanager
     async def lifespan(app: FastAPI):  # noqa: ANN001
         app.state.db = db.init(db_path())
+        app.state.ais = AisService(cfg, app.state.hub, app.state.db)
         watcher = asyncio.create_task(_watch_theme(app))
+        await app.state.ais.start()
         try:
             yield
         finally:
             watcher.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await watcher
+            await app.state.ais.stop()
             app.state.db.close()
 
     app.router.lifespan_context = lifespan
@@ -139,14 +144,38 @@ def create_app(cfg: SimpleNamespace) -> FastAPI:
                     "start_fullscreen": cfg.ui.start_fullscreen,
                 },
                 "layers": {  # Phase gates — flipped on as each phase lands
-                    "ais": False,
+                    "ais": True,
                     "conflict": False,
                     "fuel": False,
                     "ai": False,
                     "alerts": False,
                 },
+                "ais": {
+                    "throttle_ms": cfg.ais.throttle_ms,
+                    "stale_after_s": cfg.ais.stale_after_s,
+                },
             }
         )
+
+    @app.post("/api/view")
+    async def set_view(payload: dict = Body(...)) -> JSONResponse:
+        """Window viewport → AIS subscription box. bbox = [[s,w],[n,e]] or null."""
+        bbox = payload.get("bbox")
+        if bbox is not None:
+            try:
+                (s, w), (n, e) = bbox
+                bbox = [[float(s), float(w)], [float(n), float(e)]]
+            except (TypeError, ValueError):
+                raise HTTPException(422, "bbox must be [[s,w],[n,e]]") from None
+        app.state.ais.set_view(bbox)
+        return JSONResponse({"ok": True, "state": app.state.ais.state})
+
+    @app.get("/api/vessel/{mmsi}")
+    async def vessel(mmsi: int) -> JSONResponse:
+        v = app.state.ais.vessel(mmsi)
+        if v is None:
+            raise HTTPException(404, "unknown mmsi")
+        return JSONResponse(v)
 
     # ---- WebSocket ----------------------------------------------------
     @app.websocket("/ws")
