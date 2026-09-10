@@ -2,10 +2,10 @@
    ~/.config/omocrisismonitor/theme.css from omarchy-omocrisismonitor-theme. */
 :root {
   color-scheme: dark;
-  --omo-bg:#16161e;  --omo-surface:#1a1b26;  --omo-surface-2:#21232f;
-  --omo-border:#3b3f51;  --omo-fg:#c0caf5;  --omo-dim:#565f89;
-  --omo-accent:#7aa2f7;  --omo-ok:#9ece6a;  --omo-warn:#e0af68;
-  --omo-err:#f7768e;  --omo-info:#7dcfff;  --omo-blue:#7aa2f7;
-  --omo-cyan:#7dcfff;  --omo-green:#9ece6a;  --omo-magenta:#bb9af7;
-  --omo-orange:#ff9e64;  --omo-yellow:#e0af68;
+  --ocm-bg:#16161e;  --ocm-surface:#1a1b26;  --ocm-surface-2:#21232f;
+  --ocm-border:#3b3f51;  --ocm-fg:#c0caf5;  --ocm-dim:#565f89;
+  --ocm-accent:#7aa2f7;  --ocm-ok:#9ece6a;  --ocm-warn:#e0af68;
+  --ocm-err:#f7768e;  --ocm-info:#7dcfff;  --ocm-blue:#7aa2f7;
+  --ocm-cyan:#7dcfff;  --ocm-green:#9ece6a;  --ocm-magenta:#bb9af7;
+  --ocm-orange:#ff9e64;  --ocm-yellow:#e0af68;
 }

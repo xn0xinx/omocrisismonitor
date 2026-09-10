@@ -4,17 +4,26 @@ build-backend = "hatchling.build"
 
 [project]
 name = "omocrisismonitor"
-version = "0.0.1"
-description = "TODO"
+version = "0.1.0"
+description = "OmoCrisisMonitor — a themed situational-awareness console: live AIS shipping, GeoConfirmed conflict events, and global fuel prices on one interactive map, with an AI synthesis sidebar."
 readme = "README.md"
 requires-python = ">=3.12"
 license = { text = "MIT" }
 authors = [{ name = "xn0xinx" }]
 
-dependencies = []
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "httpx>=0.27",
+    "websockets>=13",
+]
 
 [project.optional-dependencies]
-dev = ["pytest>=8"]
+dev = [
+    "pytest>=8",
+    "pytest-asyncio>=0.24",
+    "anyio>=4",
+]
 
 [project.scripts]
 omocrisismonitor = "omocrisismonitor.__main__:main"
@@ -30,3 +39,4 @@ packages = ["omocrisismonitor"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+asyncio_mode = "auto"

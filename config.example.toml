@@ -1,0 +1,54 @@
+# OmoCrisisMonitor config.
+# Copy to  $XDG_CONFIG_HOME/omocrisismonitor/config.toml  (chmod 600).
+# install.sh does this for you. Anything omitted falls back to DEFAULTS in
+# omocrisismonitor/config.py. This file is git-ignored — put real keys in it.
+
+[server]
+host = "127.0.0.1"
+port = 8792
+
+[map]
+# free MapTiler Cloud key (maptiler.com). Ends up in tile-request URLs from the
+# window — that's unavoidable for any web map; lock it to localhost origins in
+# the MapTiler dashboard if you care.
+maptiler_key = ""
+style = "dataviz-dark"      # base vector style; the app recolours it to your theme
+center = [-30.0, 25.0]      # [lng, lat] opening view
+zoom = 2.2
+
+[ais]
+# free aisstream.io key. STAYS SERVER-SIDE — never sent to the browser
+# (aisstream ToS forbids direct browser connections).
+api_key = ""
+ws_url = "wss://stream.aisstream.io/v0/stream"
+throttle_ms = 1500         # coalesce per-vessel updates before pushing to the window
+stale_after_s = 900        # drop a ship from the map if unheard this long
+
+[conflict]
+api_base = "https://geoconfirmed.org"
+poll_s = 300
+snapshot_every_h = 24      # one full-dataset snapshot per day (scrub-back history)
+
+[fuel]
+crude_poll_s = 900         # Brent/WTI benchmarks
+retail_poll_h = 24         # per-country pump prices refresh at most daily
+
+[ai]
+enabled = true
+claude_bin = "claude"      # uses your Claude subscription — no API key
+model = "claude-sonnet-5"
+auto_refresh = true        # regenerate the sidebar on notable change
+min_interval_s = 900
+
+[history]
+prune_after_days = 0       # 0 = keep forever
+
+[ui]
+units_currency = "USD"
+fuel_unit = "L"            # USD per litre
+timezone = "local"         # local Omarchy time for all timestamps
+start_fullscreen = false
+
+[alerts]
+enabled = true
+notify = true             # desktop notifications on watch-rule hits

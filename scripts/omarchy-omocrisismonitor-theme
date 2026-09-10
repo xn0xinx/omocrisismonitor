@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Generate omocrisismonitor's CSS theme from the current Omarchy theme.
 
-Writes --omo-* custom properties to ~/.config/omocrisismonitor/theme.css. Mirrors the
+Writes --ocm-* custom properties to ~/.config/omocrisismonitor/theme.css. Mirrors the
 other omarchy-*-theme generators (golive, obs, halloy, vesktop, reaper).
 """
 from __future__ import annotations
@@ -48,23 +48,23 @@ def build_css(p) -> str:
     is_dark = mode != "light"
     name = NAME_FILE.read_text("utf-8").strip() if NAME_FILE.is_file() else "unknown"
     v = {
-        "--omo-bg": pick(p, "darker_background", "dark_background", "background", default="#16161e"),
-        "--omo-surface": pick(p, "background", "dark_background", default="#1a1b26"),
-        "--omo-surface-2": pick(p, "dark_background", "lighter_background", "background", default="#21232f"),
-        "--omo-border": pick(p, "muted", "selection_background", "selection", default="#3b3f51"),
-        "--omo-fg": pick(p, "foreground", "bright_foreground", default="#c0caf5"),
-        "--omo-dim": pick(p, "light_foreground", "dark_foreground", "muted", default="#565f89"),
-        "--omo-accent": pick(p, "accent", "blue", "cyan", default="#7aa2f7"),
-        "--omo-ok": pick(p, "green", "bright_green", default="#9ece6a"),
-        "--omo-warn": pick(p, "yellow", "bright_yellow", "orange", default="#e0af68"),
-        "--omo-err": pick(p, "red", "bright_red", default="#f7768e"),
-        "--omo-info": pick(p, "cyan", "bright_cyan", "blue", default="#7dcfff"),
-        "--omo-blue": pick(p, "blue", "bright_blue", default="#7aa2f7"),
-        "--omo-cyan": pick(p, "cyan", "bright_cyan", default="#7dcfff"),
-        "--omo-green": pick(p, "green", "bright_green", default="#9ece6a"),
-        "--omo-magenta": pick(p, "magenta", "purple", "bright_magenta", default="#bb9af7"),
-        "--omo-orange": pick(p, "orange", "brown", "yellow", default="#ff9e64"),
-        "--omo-yellow": pick(p, "yellow", "bright_yellow", default="#e0af68"),
+        "--ocm-bg": pick(p, "darker_background", "dark_background", "background", default="#16161e"),
+        "--ocm-surface": pick(p, "background", "dark_background", default="#1a1b26"),
+        "--ocm-surface-2": pick(p, "dark_background", "lighter_background", "background", default="#21232f"),
+        "--ocm-border": pick(p, "muted", "selection_background", "selection", default="#3b3f51"),
+        "--ocm-fg": pick(p, "foreground", "bright_foreground", default="#c0caf5"),
+        "--ocm-dim": pick(p, "dark_foreground", "muted", "light_foreground", default="#565f89"),
+        "--ocm-accent": pick(p, "accent", "blue", "cyan", default="#7aa2f7"),
+        "--ocm-ok": pick(p, "green", "bright_green", default="#9ece6a"),
+        "--ocm-warn": pick(p, "yellow", "bright_yellow", "orange", default="#e0af68"),
+        "--ocm-err": pick(p, "red", "bright_red", default="#f7768e"),
+        "--ocm-info": pick(p, "cyan", "bright_cyan", "blue", default="#7dcfff"),
+        "--ocm-blue": pick(p, "blue", "bright_blue", default="#7aa2f7"),
+        "--ocm-cyan": pick(p, "cyan", "bright_cyan", default="#7dcfff"),
+        "--ocm-green": pick(p, "green", "bright_green", default="#9ece6a"),
+        "--ocm-magenta": pick(p, "magenta", "purple", "bright_magenta", default="#bb9af7"),
+        "--ocm-orange": pick(p, "orange", "brown", "yellow", default="#ff9e64"),
+        "--ocm-yellow": pick(p, "yellow", "bright_yellow", default="#e0af68"),
     }
     lines = [
         f"/* omocrisismonitor theme - generated from Omarchy theme '{name}'. Do not edit. */",

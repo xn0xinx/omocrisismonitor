@@ -8,3 +8,5 @@ __pycache__/
 *.db-*
 config.toml
 *-auth.json
+state.json
+*.pid

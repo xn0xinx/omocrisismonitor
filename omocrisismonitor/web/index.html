@@ -2,17 +2,40 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>omocrisismonitor</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OmoCrisisMonitor</title>
 <link rel="stylesheet" href="theme.css">
-<style>
-  body { margin:0; font-family:"JetBrainsMono Nerd Font",monospace;
-         background:var(--omo-bg); color:var(--omo-fg); }
-</style>
+<link rel="stylesheet" href="vendor/maplibre-gl.css">
+<link rel="stylesheet" href="app.css">
 </head>
 <body>
-  <main id="app">omocrisismonitor</main>
-  <script>
-    // hot-swap theme.css when the server signals a theme change
-  </script>
+  <div id="map"></div>
+
+  <header id="topbar">
+    <span class="brand">OMO<b>CRISIS</b>MONITOR</span>
+    <span id="conn" class="pill" data-state="wait"><i></i><span>link</span></span>
+    <span class="sep"></span>
+    <span id="viewinfo" class="mono dim"></span>
+    <span class="grow"></span>
+    <span id="clock" class="mono">--:--:--</span>
+    <button id="full" title="Fullscreen (F)">&#9187;</button>
+  </header>
+
+  <nav id="rail">
+    <button class="layer" data-layer="ais"      disabled title="Phase 1">AIS</button>
+    <button class="layer" data-layer="conflict" disabled title="Phase 2">CONFLICT</button>
+    <button class="layer" data-layer="fuel"     disabled title="Phase 3">FUEL</button>
+    <button class="layer" data-layer="ai"       disabled title="Phase 4">AI</button>
+    <button class="layer" data-layer="alerts"   disabled title="Phase 5">ALERTS</button>
+  </nav>
+
+  <footer id="statusline" class="mono">
+    <span id="phase">phase 0 &middot; shell</span>
+    <span class="grow"></span>
+    <span id="msg">booting&hellip;</span>
+  </footer>
+
+  <script src="vendor/maplibre-gl.js"></script>
+  <script src="app.js"></script>
 </body>
 </html>

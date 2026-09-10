@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=OmoCrisisMonitor
+Comment=AIS shipping, conflict events and fuel prices on one themed map
+Exec=omocrisismonitor
+Terminal=false
+Categories=Network;Utility;
+StartupWMClass=omocrisismonitor

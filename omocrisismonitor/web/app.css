@@ -1,0 +1,86 @@
+/* OmoCrisisMonitor — Phase 0 shell. All colour comes from --ocm-* (theme.css,
+   swapped live by the server on Omarchy theme change). */
+
+*, *::before, *::after { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; overflow: hidden; }
+body {
+  background: var(--ocm-bg);
+  color: var(--ocm-fg);
+  font-family: "JetBrainsMono Nerd Font", "JetBrains Mono", ui-monospace, monospace;
+  -webkit-font-smoothing: antialiased;
+}
+.mono { font-variant-numeric: tabular-nums; }
+.dim { color: var(--ocm-dim); }
+.grow { flex: 1 1 auto; }
+
+#map { position: fixed; inset: 0; background: var(--ocm-bg); }
+/* MapLibre chrome tinted to theme */
+.maplibregl-ctrl-group { background: var(--ocm-surface); border: 1px solid var(--ocm-border); }
+.maplibregl-ctrl-group button + button { border-top: 1px solid var(--ocm-border); }
+.maplibregl-ctrl button .maplibregl-ctrl-icon { filter: invert(1) hue-rotate(180deg) opacity(.7); }
+.maplibregl-ctrl-attrib {
+  background: color-mix(in srgb, var(--ocm-surface) 80%, transparent) !important;
+  color: var(--ocm-dim);
+}
+.maplibregl-ctrl-attrib a { color: var(--ocm-accent); }
+
+/* ---- top bar --------------------------------------------------------- */
+#topbar {
+  position: fixed; left: 0; right: 0; top: 0; height: 34px; z-index: 10;
+  display: flex; align-items: center; gap: 12px; padding: 0 12px;
+  background: color-mix(in srgb, var(--ocm-surface) 88%, transparent);
+  border-bottom: 1px solid var(--ocm-border);
+  backdrop-filter: blur(6px);
+  font-size: 12px; letter-spacing: .06em;
+}
+#topbar .brand { font-weight: 700; letter-spacing: .18em; color: var(--ocm-dim); }
+#topbar .brand b { color: var(--ocm-accent); }
+#topbar .sep { width: 1px; height: 16px; background: var(--ocm-border); }
+#topbar button {
+  background: transparent; border: 1px solid var(--ocm-border); color: var(--ocm-fg);
+  border-radius: 4px; height: 22px; padding: 0 8px; cursor: pointer; font: inherit;
+}
+#topbar button:hover { border-color: var(--ocm-accent); color: var(--ocm-accent); }
+
+.pill { display: inline-flex; align-items: center; gap: 6px; text-transform: uppercase; }
+.pill i { width: 8px; height: 8px; border-radius: 50%; background: var(--ocm-warn);
+          box-shadow: 0 0 8px var(--ocm-warn); animation: pulse 1.4s ease-in-out infinite; }
+.pill[data-state="ok"]   i { background: var(--ocm-ok);  box-shadow: 0 0 8px var(--ocm-ok); }
+.pill[data-state="ok"]     { color: var(--ocm-ok); }
+.pill[data-state="down"] i { background: var(--ocm-err); box-shadow: 0 0 8px var(--ocm-err); }
+.pill[data-state="down"]   { color: var(--ocm-err); }
+.pill[data-state="wait"]   { color: var(--ocm-warn); }
+@keyframes pulse { 50% { opacity: .3; } }
+
+/* ---- left layer rail ---------------------------------------------- */
+#rail {
+  position: fixed; left: 12px; top: 46px; z-index: 10;
+  display: flex; flex-direction: column; gap: 6px;
+}
+#rail .layer {
+  width: 92px; text-align: left; padding: 7px 10px;
+  background: color-mix(in srgb, var(--ocm-surface) 88%, transparent);
+  border: 1px solid var(--ocm-border); border-left: 2px solid var(--ocm-border);
+  color: var(--ocm-dim); border-radius: 4px; cursor: pointer;
+  font: 600 11px/1 "JetBrainsMono Nerd Font", monospace; letter-spacing: .12em;
+  backdrop-filter: blur(6px);
+}
+#rail .layer:not([disabled]):hover { color: var(--ocm-fg); border-left-color: var(--ocm-accent); }
+#rail .layer.on { color: var(--ocm-fg); border-left-color: var(--ocm-accent);
+                  background: color-mix(in srgb, var(--ocm-accent) 14%, var(--ocm-surface)); }
+#rail .layer[disabled] { opacity: .45; cursor: not-allowed; }
+
+/* ---- status line ------------------------------------------------- */
+#statusline {
+  position: fixed; left: 0; right: 0; bottom: 0; height: 24px; z-index: 10;
+  display: flex; align-items: center; gap: 12px; padding: 0 12px;
+  background: color-mix(in srgb, var(--ocm-surface) 88%, transparent);
+  border-top: 1px solid var(--ocm-border);
+  font-size: 11px; color: var(--ocm-dim); letter-spacing: .05em;
+  backdrop-filter: blur(6px);
+}
+#statusline #msg { color: var(--ocm-fg); }
+
+/* fullscreen / cinematic */
+body.fs #topbar, body.fs #statusline { opacity: 0; transition: opacity .3s; }
+body.fs:hover #topbar, body.fs:hover #statusline { opacity: 1; }
