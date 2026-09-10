@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.3.1 — 2026-09-10 — Phase 2 polish: intel-panel media
+
+- `web/conflict.js` — the conflict detail panel now surfaces what GeoConfirmed
+  actually gives us for media:
+  - **Source media-type chip** in the header from the `origin` code
+    (VID/PIC/IMG/UAV/SAT/… → "▶ video", "◹ drone", "◍ satellite", …; unknown
+    codes pass through).
+  - **YouTube thumbnails** — any `youtube.com` / `youtu.be` / `shorts` / `live`
+    URL in `originalSource` or `geolocation` renders `img.youtube.com/vi/<id>/
+    hqdefault.jpg` with a play overlay, linking out. A broken thumb removes
+    itself. This is the only source we can preview without a heavyweight embed —
+    GeoConfirmed's detail API returns **no** thumbnail field, and X/Telegram
+    have no free preview path, so those stay as labelled link chips.
+  - **`gear` + `units`** free-text rows added (e.g. "Bulldozer", "45th Separate
+    Artillery Brigade") — previously dropped.
+  - Text fields (`name`, `description`, `gear`, `units`, link hostnames) are now
+    HTML-escaped on the way into the panel.
+- `web/app.css` — chip + thumbnail-strip styling; source link groups left-aligned.
+
 ## 0.3.0 — 2026-09-10 — Phase 2: Conflict layer (GeoConfirmed)
 
 - `conflict.py` — `ConflictService`: periodic (`refresh_h`, default 6 h) server-side

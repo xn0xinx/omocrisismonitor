@@ -126,11 +126,46 @@
   }
 
   /* ---- detail panel -------------------------------------------- */
-  const F = (v) => (v == null || v === "" ? "—" : v);
-  const links = (blob) =>
-    !blob ? "" : String(blob).split(/[\s,]+/).filter((u) => /^https?:/.test(u))
-      .map((u) => `<a href="${u}" target="_blank" rel="noreferrer">${new URL(u).hostname.replace(/^www\./, "")} ↗</a>`)
-      .join("<br>");
+  const F = (v) => (v == null || String(v).trim() === "" ? "—" : String(v).trim());
+  const esc = (s) => String(s).replace(/[&<>"]/g,
+    (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+  const urlsOf = (blob) =>
+    !blob ? [] : String(blob).split(/[\s,]+/).filter((u) => /^https?:\/\//.test(u));
+
+  const links = (list) =>
+    list.map((u) => {
+      let host = u;
+      try { host = new URL(u).hostname.replace(/^www\./, ""); } catch { /* keep raw */ }
+      return `<a href="${esc(u)}" target="_blank" rel="noreferrer">${esc(host)} ↗</a>`;
+    }).join("<br>");
+
+  /* GeoConfirmed `origin` = the source's media type (no thumbnail is provided) */
+  const ORIGIN = {
+    VID: ["video", "▶"], PIC: ["photo", "▣"], IMG: ["image", "▣"],
+    UAV: ["drone", "◹"], SAT: ["satellite", "◍"], MAP: ["map", "▦"],
+    NEWS: ["news", "▤"], AUD: ["audio", "♪"], TXT: ["report", "▤"],
+  };
+  const originTag = (code) => {
+    if (!code) return "";
+    const [label, glyph] = ORIGIN[String(code).toUpperCase()] || [String(code), "◆"];
+    return `<span class="otag" title="source media type">${glyph} ${esc(label)}</span>`;
+  };
+
+  /* the only source we can preview cheaply: YouTube's static thumbnail host */
+  const YT_RE = /(?:youtube\.com\/(?:watch\?(?:[^ ]*&)?v=|shorts\/|embed\/|live\/)|youtu\.be\/)([\w-]{11})/i;
+  function ytThumbs(urls) {
+    const ids = [];
+    for (const u of urls) {
+      const m = u.match(YT_RE);
+      if (m && !ids.includes(m[1])) ids.push(m[1]);
+    }
+    if (!ids.length) return "";
+    return `<div class="media">` + ids.map((id) =>
+      `<a class="yt" href="https://youtu.be/${id}" target="_blank" rel="noreferrer">` +
+      `<img loading="lazy" src="https://img.youtube.com/vi/${id}/hqdefault.jpg" alt="">` +
+      `<span class="play">▶</span></a>`).join("") + `</div>`;
+  }
 
   async function select(id) {
     hub.dispatchEvent(new Event("dismiss"));   // release #detail from any other layer
@@ -143,21 +178,30 @@
 
   function renderDetail(d) {
     const el = $("#detail");
+    const srcU = urlsOf(d.originalSource), geoU = urlsOf(d.geolocation);
     const rows = [
       ["Date", F(d.date && d.date.slice(0, 10))],
       ["Faction", F(d.faction)],
-      ["Origin", F(d.origin)],
-      ["Location", d.latitude == null ? "—" : `${(+d.latitude).toFixed(4)}, ${(+d.longitude).toFixed(4)}`],
+      ["Location", d.latitude == null ? "—"
+        : `${(+d.latitude).toFixed(4)}, ${(+d.longitude).toFixed(4)}`],
       ["Plus code", F(d.plusCode)],
     ];
+    if (F(d.gear) !== "—") rows.push(["Gear", F(d.gear)]);
+    if (F(d.units) !== "—") rows.push(["Units", F(d.units)]);
+
+    const nm = F(d.name) === "—" ? "Event" : esc(F(d.name));
     el.innerHTML =
-      `<header><span class="nm">${F(d.name) === "—" ? "Event" : d.name}</span>` +
+      `<header><span class="nm">${nm}</span>${originTag(d.origin)}` +
       `<button id="detail-x" title="Esc">&times;</button></header>` +
-      (d.description ? `<p class="desc">${d.description}</p>` : "") +
-      `<dl>${rows.map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join("")}</dl>` +
-      (d.originalSource ? `<div class="srcgrp"><dt>Source</dt><dd>${links(d.originalSource)}</dd></div>` : "") +
-      (d.geolocation ? `<div class="srcgrp"><dt>Geolocation</dt><dd>${links(d.geolocation)}</dd></div>` : "");
+      ytThumbs([...srcU, ...geoU]) +
+      (d.description ? `<p class="desc">${esc(d.description)}</p>` : "") +
+      `<dl>${rows.map(([k, v]) => `<div><dt>${k}</dt><dd>${esc(v)}</dd></div>`).join("")}</dl>` +
+      (srcU.length ? `<div class="srcgrp"><dt>Source</dt><dd>${links(srcU)}</dd></div>` : "") +
+      (geoU.length ? `<div class="srcgrp"><dt>Geolocation</dt><dd>${links(geoU)}</dd></div>` : "");
     el.hidden = false;
+    el.querySelectorAll(".media img").forEach((img) => {
+      img.onerror = () => { const y = img.closest(".yt"); if (y) y.remove(); };
+    });
     $("#detail-x").onclick = deselect;
   }
 

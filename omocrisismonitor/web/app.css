@@ -159,9 +159,32 @@ body.fs:hover #topbar, body.fs:hover #statusline { opacity: 1; }
 #detail .srcgrp dt {
   color: var(--ocm-dim); font-size: 10px; letter-spacing: .1em; text-transform: uppercase;
 }
-#detail .srcgrp dd { margin: 0; }
+#detail .srcgrp dd { margin: 0; text-align: left; }
 #detail .srcgrp a { color: var(--ocm-accent); font-size: 11px; text-decoration: none; }
 #detail .srcgrp a:hover { text-decoration: underline; }
+
+/* conflict: source media-type chip in the header */
+#detail header .otag {
+  flex: none; padding: 2px 6px; border-radius: 3px;
+  border: 1px solid var(--ocm-border); color: var(--ocm-dim);
+  font-size: 9px; letter-spacing: .1em; text-transform: uppercase; white-space: nowrap;
+}
+/* conflict: YouTube thumbnails (the only source we can preview without an embed) */
+#detail .media {
+  display: flex; flex-wrap: wrap; gap: 6px;
+  padding: 8px 10px; border-bottom: 1px solid var(--ocm-border);
+}
+#detail .media .yt {
+  position: relative; display: block; flex: 1 1 132px; max-width: 100%;
+  border: 1px solid var(--ocm-border); border-radius: 3px; overflow: hidden; line-height: 0;
+}
+#detail .media .yt img { width: 100%; height: auto; display: block; }
+#detail .media .yt .play {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  color: #fff; font-size: 22px; text-shadow: 0 0 8px rgba(0, 0, 0, .8);
+  background: rgba(0, 0, 0, .15); transition: background .15s;
+}
+#detail .media .yt:hover .play { background: rgba(0, 0, 0, .35); }
 
 body.fs #detail { top: 12px; }
 body.fs .badge { top: 12px; }

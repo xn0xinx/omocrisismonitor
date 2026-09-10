@@ -23,7 +23,7 @@ from .conflict import ConflictService, _iso_to_sort
 from .config import config_path, db_path
 
 WEB = files("omocrisismonitor").joinpath("web")
-__version__ = "0.3.0"
+__version__ = "0.3.1"
 
 
 class Hub:
