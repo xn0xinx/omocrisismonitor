@@ -150,6 +150,7 @@
   }
 
   async function select(mmsi) {
+    hub.dispatchEvent(new Event("dismiss"));   // release #detail from any other layer
     mmsi = Number(mmsi);
     selected = mmsi;
     map.setFilter("ocm-ais-sel", ["==", ["get", "mmsi"], mmsi]);

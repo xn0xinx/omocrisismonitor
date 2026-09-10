@@ -1,5 +1,53 @@
 # Changelog
 
+## 0.3.0 — 2026-09-10 — Phase 2: Conflict layer (GeoConfirmed)
+
+- `conflict.py` — `ConflictService`: periodic (`refresh_h`, default 6 h) server-side
+  pull of every tracked GeoConfirmed theatre's GeoJSON feed. **Event store, not
+  daily snapshots** — each placemark is one id-keyed row carrying its own event
+  date, so "scrub back in time" is a `date_sort BETWEEN` filter. `dateSort` =
+  days since 1970-01-01 (verified against the live feed). Ingest is Point-only,
+  drops events older than `window_days × 2`, upserts (keeps `first_seen`), stores
+  the faction palette per theatre, writes a provenance-only `conflict_snapshot`
+  row (counts, no copies). One dead theatre doesn't sink the refresh. Detail
+  (`description` / `originalSource` / `geolocation` / `plusCode`) is fetched live
+  per-id on click and memory-cached — never stored. `httpx` client injectable
+  (`client=`) for tests.
+- GeoConfirmed v2 API pinned: `GET /api/Conflict`,
+  `GET /api/Placemark/{slug}/geojson` (`{factionMeta, geojson}`),
+  `GET /api/Placemark/detail/{id}`. Public reads, no key. Historical theatres
+  (`wwi`, `wwii`) skipped unless named in `conflict.theatres`.
+- `db.py` — **SCHEMA_VERSION 2**. Reworked `conflict_event` / `conflict_snapshot`
+  from the snapshot model to the event store, added `conflict_faction`. Proper
+  `_MIGRATIONS` map + a `meta`-first / migrate / `_SCHEMA` init order so a v1 DB
+  upgrades cleanly (the v1 conflict tables never held data).
+- `server.py` — `ConflictService` in the lifespan; `GET /api/conflict/bootstrap`
+  (theatres + counts + faction palettes + date span), `GET /api/conflict/events`
+  (`?until=&since=&conflicts=` — day-int or ISO date → trailing-window GeoJSON
+  slice), `GET /api/conflict/detail/{id}` (proxied, 404 on unknown),
+  `POST /api/conflict/refresh` (manual kick). `conflict` gate on; bootstrap
+  carries `window_days` / `refresh_h`.
+- `web/conflict.js` — layer module: clustered pins coloured by faction, cluster
+  expansion on click, dot → `/api/conflict/detail` → intel panel (description,
+  date, faction, origin, plus code, source + geolocation links). **Date
+  scrubber** (`#scrubber`, above the status line): range slider from
+  `floor_sort` to today, ● LIVE toggle, debounced refetch on drag, amber "history"
+  state when wound back. Refetches on the `conflict_refresh` WS event while live.
+- `web/ais.js` / `conflict.js` — layers cooperate over the shared `#detail`
+  panel: selecting in one dispatches `dismiss` so the other releases it.
+- `config.py` / `config.example.toml` — `[conflict]` reworked: `api_base`,
+  `refresh_h`, `window_days` (default 90 — what's drawn / how far the scrubber
+  winds; history still accrues forever in the DB), `theatres` ([] = all active).
+  Dropped `poll_s` / `snapshot_every_h`.
+- `index.html` / `app.css` — load `conflict.js`, un-gate the CONFLICT rail button,
+  second status badge, scrubber + intel-panel styling.
+- Tests: `test_conflict.py` (theatre filter, ingest window/upsert/idempotency,
+  dead-theatre resilience, trailing-window slice, bootstrap counts + span,
+  detail cache) via a `MockTransport`; `test_server.py` covers the four
+  `/api/conflict/*` routes + ISO-date params + the v2 gate. 39 pass.
+- Live smoke test against GeoConfirmed: pulled iran + ven, scrubbed by day-int
+  and ISO date, fetched real placemark detail.
+
 ## 0.2.0 — 2026-09-10 — Phase 1: AIS layer
 
 - `ais.py` — `AisService`: one long-lived aisstream.io WebSocket subscribed to

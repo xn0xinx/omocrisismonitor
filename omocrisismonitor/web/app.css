@@ -102,7 +102,7 @@ body.fs:hover #topbar, body.fs:hover #statusline { opacity: 1; }
 /* ---- AIS: selection detail (right edge) --------------------------- */
 #detail {
   position: fixed; right: 12px; top: 46px; z-index: 10;
-  width: 300px; max-height: calc(100% - 46px - 34px); overflow-y: auto;
+  width: 300px; max-height: calc(100% - 46px - 64px); overflow-y: auto;
   background: color-mix(in srgb, var(--ocm-surface) 92%, transparent);
   border: 1px solid var(--ocm-border); border-radius: 4px;
   backdrop-filter: blur(6px);
@@ -146,5 +146,64 @@ body.fs:hover #topbar, body.fs:hover #statusline { opacity: 1; }
 }
 #detail .ext:hover { text-decoration: underline; }
 
+/* conflict detail additions: a description blurb + stacked source links */
+#detail .desc {
+  margin: 0; padding: 8px 10px;
+  border-bottom: 1px solid var(--ocm-border);
+  color: var(--ocm-fg); font-size: 12px; line-height: 1.45; letter-spacing: .01em;
+}
+#detail .srcgrp {
+  display: flex; flex-direction: column; gap: 3px;
+  padding: 6px 10px; border-top: 1px dashed color-mix(in srgb, var(--ocm-border) 55%, transparent);
+}
+#detail .srcgrp dt {
+  color: var(--ocm-dim); font-size: 10px; letter-spacing: .1em; text-transform: uppercase;
+}
+#detail .srcgrp dd { margin: 0; }
+#detail .srcgrp a { color: var(--ocm-accent); font-size: 11px; text-decoration: none; }
+#detail .srcgrp a:hover { text-decoration: underline; }
+
 body.fs #detail { top: 12px; }
 body.fs .badge { top: 12px; }
+
+/* ---- conflict: second badge stacks under the AIS one ------------- */
+.badge-2 { top: 74px; }
+body.fs .badge-2 { top: 42px; }
+
+/* ---- conflict: date scrubber (above the status line) ------------ */
+#scrubber {
+  position: fixed; left: 0; right: 0; bottom: 24px; z-index: 10;
+  height: 34px; display: flex; align-items: center; gap: 12px; padding: 0 14px;
+  background: color-mix(in srgb, var(--ocm-surface) 90%, transparent);
+  border-top: 1px solid var(--ocm-border);
+  backdrop-filter: blur(6px);
+  font-size: 11px; letter-spacing: .04em;
+}
+#scrubber.history { border-top-color: var(--ocm-warn); }
+#scrubber #scrub-live {
+  flex: none; padding: 3px 9px; border-radius: 3px; cursor: pointer;
+  background: transparent; border: 1px solid var(--ocm-border);
+  color: var(--ocm-dim); font: 600 10px/1 "JetBrainsMono Nerd Font", monospace;
+  letter-spacing: .12em;
+}
+#scrubber #scrub-live.on { color: var(--ocm-ok); border-color: var(--ocm-ok); }
+#scrubber #scrub-date { flex: none; min-width: 5.5em; color: var(--ocm-fg); }
+#scrubber .dim { flex: none; }
+#scrub-range {
+  flex: 1 1 auto; height: 4px; -webkit-appearance: none; appearance: none;
+  background: var(--ocm-border); border-radius: 2px; outline: none;
+}
+#scrub-range::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none; width: 12px; height: 12px;
+  border-radius: 50%; background: var(--ocm-accent); cursor: pointer;
+  border: 2px solid var(--ocm-bg);
+}
+#scrubber.history #scrub-range::-webkit-slider-thumb { background: var(--ocm-warn); }
+#scrub-range::-moz-range-thumb {
+  width: 12px; height: 12px; border-radius: 50%; background: var(--ocm-accent);
+  cursor: pointer; border: 2px solid var(--ocm-bg);
+}
+#scrubber.history #scrub-range::-moz-range-thumb { background: var(--ocm-warn); }
+
+body.fs #scrubber { opacity: 0; transition: opacity .3s; }
+body.fs:hover #scrubber { opacity: 1; }

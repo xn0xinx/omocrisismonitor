@@ -10,7 +10,7 @@ from __future__ import annotations
 import sqlite3
 from pathlib import Path
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS meta (
@@ -37,30 +37,44 @@ CREATE TABLE IF NOT EXISTS fuel_retail (
     PRIMARY KEY (ts, country, kind)
 );
 
--- Phase 2: conflict -----------------------------------------------------
--- one snapshot per capture (Q9: ~daily); events belong to a snapshot so we
--- can scrub the map back in time.
-CREATE TABLE IF NOT EXISTS conflict_snapshot (
-    id         INTEGER PRIMARY KEY AUTOINCREMENT,
-    ts         INTEGER NOT NULL,
-    event_count INTEGER NOT NULL DEFAULT 0
-);
+-- Phase 2: conflict (GeoConfirmed) -------------------------------------
+-- Event store, not daily full snapshots. One row per GeoConfirmed placemark,
+-- upserted every refresh; each carries its own event date, so "scrub the map
+-- back in time" is just  WHERE date_sort <= T. Detail (description / sources /
+-- geolocation) is fetched live per-id on click, not stored.
 CREATE TABLE IF NOT EXISTS conflict_event (
-    snapshot_id INTEGER NOT NULL REFERENCES conflict_snapshot(id) ON DELETE CASCADE,
-    ext_id      TEXT    NOT NULL,      -- GeoConfirmed id
+    ext_id      TEXT    PRIMARY KEY,   -- GeoConfirmed placemark guid
+    conflict    TEXT    NOT NULL,      -- theatre url slug (ukraine, israel, ...)
     lat         REAL    NOT NULL,
     lon         REAL    NOT NULL,
-    date        TEXT,
-    category    TEXT,
-    country     TEXT,
-    title       TEXT,
-    description TEXT,
-    sources     TEXT,                  -- json array of urls
-    media       TEXT,                  -- json array of urls
-    raw         TEXT,                  -- json passthrough of the source record
-    PRIMARY KEY (snapshot_id, ext_id)
+    date        TEXT,                  -- event date, ISO (from the feed)
+    date_sort   INTEGER,               -- GeoConfirmed's dateSort int, for range scans
+    faction_id  INTEGER,
+    color       TEXT,                  -- faction colour, "#rrggbb"
+    icon        TEXT,                  -- icon path on geoconfirmed.org
+    first_seen  INTEGER NOT NULL,      -- unix s, first time we ingested it
+    last_seen   INTEGER NOT NULL       -- unix s, last refresh that still carried it
 );
-CREATE INDEX IF NOT EXISTS ix_conflict_event_snap ON conflict_event(snapshot_id);
+CREATE INDEX IF NOT EXISTS ix_conflict_event_date ON conflict_event(date_sort);
+CREATE INDEX IF NOT EXISTS ix_conflict_event_conflict ON conflict_event(conflict);
+
+-- per-theatre faction palette, replaced wholesale each refresh
+CREATE TABLE IF NOT EXISTS conflict_faction (
+    conflict TEXT    NOT NULL,
+    id       INTEGER NOT NULL,
+    name     TEXT,
+    color    TEXT,
+    PRIMARY KEY (conflict, id)
+);
+
+-- provenance only: one row per theatre per refresh cycle (no full copies)
+CREATE TABLE IF NOT EXISTS conflict_snapshot (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    ts          INTEGER NOT NULL,
+    conflict    TEXT    NOT NULL,
+    event_count INTEGER NOT NULL DEFAULT 0,   -- events carried by this refresh
+    added       INTEGER NOT NULL DEFAULT 0    -- of which newly seen
+);
 
 -- Phase 1: AIS --------------------------------------------------------------
 -- last-known static data per vessel we've seen
@@ -118,8 +132,15 @@ def connect(path: Path) -> sqlite3.Connection:
 
 def init(path: Path) -> sqlite3.Connection:
     con = connect(path)
-    con.executescript(_SCHEMA)
+    # meta first so _migrate can read the version; migrations bring any existing
+    # tables to the current shape; _SCHEMA then fills in whatever's still missing
+    # (fresh install, or a table added in a later phase). Order matters — _SCHEMA
+    # assumes current column names.
+    con.execute(
+        "CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)"
+    )
     _migrate(con)
+    con.executescript(_SCHEMA)
     con.commit()
     return con
 
@@ -129,9 +150,52 @@ def _get_version(con: sqlite3.Connection) -> int:
     return int(row["value"]) if row else 0
 
 
+_MIGRATIONS: dict[int, str] = {
+    # v1 -> v2: Phase 2 reworked the conflict tables from the daily-full-snapshot
+    # model to an event store. The v1 tables never carried data (Phase 2 hadn't
+    # shipped), so just drop and let _SCHEMA above recreate them.
+    2: """
+        DROP TABLE IF EXISTS conflict_event;
+        DROP TABLE IF EXISTS conflict_snapshot;
+        CREATE TABLE IF NOT EXISTS conflict_event (
+            ext_id      TEXT    PRIMARY KEY,
+            conflict    TEXT    NOT NULL,
+            lat         REAL    NOT NULL,
+            lon         REAL    NOT NULL,
+            date        TEXT,
+            date_sort   INTEGER,
+            faction_id  INTEGER,
+            color       TEXT,
+            icon        TEXT,
+            first_seen  INTEGER NOT NULL,
+            last_seen   INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS ix_conflict_event_date ON conflict_event(date_sort);
+        CREATE INDEX IF NOT EXISTS ix_conflict_event_conflict ON conflict_event(conflict);
+        CREATE TABLE IF NOT EXISTS conflict_faction (
+            conflict TEXT    NOT NULL,
+            id       INTEGER NOT NULL,
+            name     TEXT,
+            color    TEXT,
+            PRIMARY KEY (conflict, id)
+        );
+        CREATE TABLE IF NOT EXISTS conflict_snapshot (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            ts          INTEGER NOT NULL,
+            conflict    TEXT    NOT NULL,
+            event_count INTEGER NOT NULL DEFAULT 0,
+            added       INTEGER NOT NULL DEFAULT 0
+        );
+    """,
+}
+
+
 def _migrate(con: sqlite3.Connection) -> None:
     v = _get_version(con)
-    # future: if v < 2: con.executescript(...)
+    for target in range(v + 1, SCHEMA_VERSION + 1):
+        script = _MIGRATIONS.get(target)
+        if script:
+            con.executescript(script)
     if v != SCHEMA_VERSION:
         con.execute(
             "INSERT INTO meta(key,value) VALUES('schema_version',?) "

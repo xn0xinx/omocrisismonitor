@@ -1,7 +1,7 @@
 """FastAPI app: serves the map window, a WebSocket event stream, and a small
-REST surface. Phase 0 wired the shell (map, theme sync, health); Phase 1 adds
-the AIS service + `/api/view` / `/api/vessel`. Later layers (conflict / fuel /
-AI) attach to the same hub.
+REST surface. Phase 0 wired the shell (map, theme sync, health); Phase 1 the
+AIS service + `/api/view` / `/api/vessel`; Phase 2 the conflict service +
+`/api/conflict/*`. Later layers (fuel / AI) attach to the same hub.
 """
 from __future__ import annotations
 
@@ -19,10 +19,11 @@ from fastapi.staticfiles import StaticFiles
 
 from . import db
 from .ais import AisService
+from .conflict import ConflictService, _iso_to_sort
 from .config import config_path, db_path
 
 WEB = files("omocrisismonitor").joinpath("web")
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 
 
 class Hub:
@@ -84,8 +85,10 @@ def create_app(cfg: SimpleNamespace) -> FastAPI:
     async def lifespan(app: FastAPI):  # noqa: ANN001
         app.state.db = db.init(db_path())
         app.state.ais = AisService(cfg, app.state.hub, app.state.db)
+        app.state.conflict = ConflictService(cfg, app.state.hub, app.state.db)
         watcher = asyncio.create_task(_watch_theme(app))
         await app.state.ais.start()
+        await app.state.conflict.start()
         try:
             yield
         finally:
@@ -93,6 +96,7 @@ def create_app(cfg: SimpleNamespace) -> FastAPI:
             with contextlib.suppress(asyncio.CancelledError):
                 await watcher
             await app.state.ais.stop()
+            await app.state.conflict.stop()
             app.state.db.close()
 
     app.router.lifespan_context = lifespan
@@ -145,7 +149,7 @@ def create_app(cfg: SimpleNamespace) -> FastAPI:
                 },
                 "layers": {  # Phase gates — flipped on as each phase lands
                     "ais": True,
-                    "conflict": False,
+                    "conflict": True,
                     "fuel": False,
                     "ai": False,
                     "alerts": False,
@@ -153,6 +157,10 @@ def create_app(cfg: SimpleNamespace) -> FastAPI:
                 "ais": {
                     "throttle_ms": cfg.ais.throttle_ms,
                     "stale_after_s": cfg.ais.stale_after_s,
+                },
+                "conflict": {
+                    "window_days": cfg.conflict.window_days,
+                    "refresh_h": cfg.conflict.refresh_h,
                 },
             }
         )
@@ -176,6 +184,44 @@ def create_app(cfg: SimpleNamespace) -> FastAPI:
         if v is None:
             raise HTTPException(404, "unknown mmsi")
         return JSONResponse(v)
+
+    # ---- conflict (GeoConfirmed) ------------------------------------
+    def _as_sort(v: str | None) -> int | None:
+        """Query param → dateSort int. Accepts a bare day-int or an ISO date."""
+        if v is None or v == "":
+            return None
+        try:
+            return int(v)
+        except ValueError:
+            return _iso_to_sort(v)
+
+    @app.get("/api/conflict/bootstrap")
+    async def conflict_bootstrap() -> JSONResponse:
+        return JSONResponse(app.state.conflict.bootstrap())
+
+    @app.get("/api/conflict/events")
+    async def conflict_events(
+        until: str | None = None,
+        since: str | None = None,
+        conflicts: str | None = None,
+    ) -> JSONResponse:
+        slugs = [s for s in (conflicts or "").split(",") if s] or None
+        return JSONResponse(
+            app.state.conflict.events_geojson(_as_sort(until), _as_sort(since), slugs)
+        )
+
+    @app.get("/api/conflict/detail/{ext_id}")
+    async def conflict_detail(ext_id: str) -> JSONResponse:
+        d = await app.state.conflict.detail(ext_id)
+        if d is None:
+            raise HTTPException(404, "unknown placemark")
+        return JSONResponse(d)
+
+    @app.post("/api/conflict/refresh")
+    async def conflict_refresh() -> JSONResponse:
+        """Manual kick — the layer normally refreshes on its own timer."""
+        totals = await app.state.conflict.refresh()
+        return JSONResponse({"ok": True, **totals})
 
     # ---- WebSocket ----------------------------------------------------
     @app.websocket("/ws")

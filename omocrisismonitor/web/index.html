@@ -11,7 +11,9 @@
 <body>
   <div id="map"></div>
   <div id="ais-badge" class="badge" hidden></div>
+  <div id="conflict-badge" class="badge badge-2" hidden></div>
   <aside id="detail" hidden></aside>
+  <div id="scrubber" class="mono" hidden></div>
 
   <header id="topbar">
     <span class="brand">OMO<b>CRISIS</b>MONITOR</span>
@@ -25,14 +27,14 @@
 
   <nav id="rail">
     <button class="layer" data-layer="ais"      title="Phase 1">AIS</button>
-    <button class="layer" data-layer="conflict" disabled title="Phase 2">CONFLICT</button>
+    <button class="layer" data-layer="conflict" title="Phase 2">CONFLICT</button>
     <button class="layer" data-layer="fuel"     disabled title="Phase 3">FUEL</button>
     <button class="layer" data-layer="ai"       disabled title="Phase 4">AI</button>
     <button class="layer" data-layer="alerts"   disabled title="Phase 5">ALERTS</button>
   </nav>
 
   <footer id="statusline" class="mono">
-    <span id="phase">phase 1 &middot; ais</span>
+    <span id="phase">phase 2 &middot; conflict</span>
     <span class="grow"></span>
     <span id="msg">booting&hellip;</span>
   </footer>
@@ -40,5 +42,6 @@
   <script src="vendor/maplibre-gl.js"></script>
   <script src="app.js"></script>
   <script src="ais.js"></script>
+  <script src="conflict.js"></script>
 </body>
 </html>

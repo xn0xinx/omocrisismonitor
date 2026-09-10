@@ -43,11 +43,18 @@ DEFAULTS: dict = {
         "stale_after_s": 900,
     },
     "conflict": {
-        # GeoConfirmed official API. Verified/tuned in Phase 2.
+        # GeoConfirmed v2 API. Public read access, no key.
         "api_base": "https://geoconfirmed.org",
-        "poll_s": 300,
-        # take one full-dataset snapshot per this many hours (Q9: daily)
-        "snapshot_every_h": 24,
+        # full re-pull of every theatre's GeoJSON feed this often (server-side;
+        # the window only ever gets our trimmed slice). Ukraine's feed is ~16 MB.
+        "refresh_h": 6,
+        # recency cap: the window loads events newer than this, and it's the
+        # floor the date scrubber can wind back to. History still accrues in the
+        # DB forever (Q11) — this only bounds what's drawn.
+        "window_days": 90,
+        # [] = every active theatre GeoConfirmed lists; or pin a subset of url
+        # slugs, e.g. ["ukraine", "israel", "iran"].
+        "theatres": [],
     },
     "fuel": {
         # crude benchmarks (live-ish) + retail-per-country choropleth (weekly)
