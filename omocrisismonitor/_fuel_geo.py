@@ -1,0 +1,52 @@
+"""GlobalPetrolPrices country label -> ISO-3166 alpha-2, for joining the retail
+scrape onto the vendored world-countries GeoJSON (`properties.iso`). GPP uses
+some short forms ("UAE", "Dom. Rep.", "Burma"); anything not in this map is
+dropped from the choropleth (logged once). Pure data, no I/O.
+"""
+from __future__ import annotations
+
+GPP_ISO: dict[str, str] = {
+    "Afghanistan": "AF", "Albania": "AL", "Algeria": "DZ", "Andorra": "AD",
+    "Angola": "AO", "Argentina": "AR", "Armenia": "AM", "Aruba": "AW",
+    "Australia": "AU", "Austria": "AT", "Azerbaijan": "AZ", "Bahamas": "BS",
+    "Bahrain": "BH", "Bangladesh": "BD", "Barbados": "BB", "Belarus": "BY",
+    "Belgium": "BE", "Belize": "BZ", "Benin": "BJ", "Bhutan": "BT",
+    "Bolivia": "BO", "Bosnia & Herz.": "BA", "Botswana": "BW", "Brazil": "BR",
+    "Bulgaria": "BG", "Burkina Faso": "BF", "Burma": "MM", "Burundi": "BI",
+    "C. Afr. Rep.": "CF", "Cambodia": "KH", "Cameroon": "CM", "Canada": "CA",
+    "Cape Verde": "CV", "Cayman Islands": "KY", "Chile": "CL", "China": "CN",
+    "Colombia": "CO", "Costa Rica": "CR", "Croatia": "HR", "Cuba": "CU",
+    "Curacao": "CW", "Cyprus": "CY", "Czech Republic": "CZ", "DR Congo": "CD",
+    "Denmark": "DK", "Dom. Rep.": "DO", "Dominica": "DM", "Ecuador": "EC",
+    "Egypt": "EG", "El Salvador": "SV", "Estonia": "EE", "Ethiopia": "ET",
+    "Fiji": "FJ", "Finland": "FI", "France": "FR", "Gabon": "GA",
+    "Georgia": "GE", "Germany": "DE", "Ghana": "GH", "Greece": "GR",
+    "Grenada": "GD", "Guatemala": "GT", "Guinea": "GN", "Guyana": "GY",
+    "Haiti": "HT", "Honduras": "HN", "Hong Kong": "HK", "Hungary": "HU",
+    "Iceland": "IS", "India": "IN", "Indonesia": "ID", "Iran": "IR",
+    "Iraq": "IQ", "Ireland": "IE", "Israel": "IL", "Italy": "IT",
+    "Ivory Coast": "CI", "Jamaica": "JM", "Japan": "JP", "Jordan": "JO",
+    "Kazakhstan": "KZ", "Kenya": "KE", "Kuwait": "KW", "Kyrgyzstan": "KG",
+    "Laos": "LA", "Latvia": "LV", "Lebanon": "LB", "Lesotho": "LS",
+    "Liberia": "LR", "Libya": "LY", "Liechtenstein": "LI", "Lithuania": "LT",
+    "Luxembourg": "LU", "Madagascar": "MG", "Malawi": "MW", "Malaysia": "MY",
+    "Maldives": "MV", "Mali": "ML", "Malta": "MT", "Mauritius": "MU",
+    "Mayotte": "YT", "Mexico": "MX", "Moldova": "MD", "Monaco": "MC",
+    "Mongolia": "MN", "Montenegro": "ME", "Morocco": "MA", "Mozambique": "MZ",
+    "N. Maced.": "MK", "Namibia": "NA", "Nepal": "NP", "Netherlands": "NL",
+    "New Zealand": "NZ", "Nicaragua": "NI", "Niger": "NE", "Nigeria": "NG",
+    "Norway": "NO", "Oman": "OM", "Pakistan": "PK", "Panama": "PA",
+    "Paraguay": "PY", "Peru": "PE", "Philippines": "PH", "Poland": "PL",
+    "Portugal": "PT", "Puerto Rico": "PR", "Qatar": "QA", "Romania": "RO",
+    "Russia": "RU", "Rwanda": "RW", "Saint Lucia": "LC", "San Marino": "SM",
+    "Saudi Arabia": "SA", "Senegal": "SN", "Serbia": "RS", "Seychelles": "SC",
+    "Sierra Leone": "SL", "Singapore": "SG", "Slovakia": "SK", "Slovenia": "SI",
+    "South Africa": "ZA", "South Korea": "KR", "Spain": "ES", "Sri Lanka": "LK",
+    "Sudan": "SD", "Suriname": "SR", "Swaziland": "SZ", "Sweden": "SE",
+    "Switzerland": "CH", "Syria": "SY", "Taiwan": "TW", "Tanzania": "TZ",
+    "Thailand": "TH", "Togo": "TG", "Trinidad & Tobago": "TT", "Tunisia": "TN",
+    "Turkey": "TR", "Turkmenistan": "TM", "UAE": "AE", "UK": "GB", "USA": "US",
+    "Uganda": "UG", "Ukraine": "UA", "Uruguay": "UY", "Uzbekistan": "UZ",
+    "Venezuela": "VE", "Vietnam": "VN", "Wallis and Futuna": "WF", "Zambia": "ZM",
+    "Zimbabwe": "ZW",
+}

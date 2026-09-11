@@ -1,7 +1,8 @@
 """FastAPI app: serves the map window, a WebSocket event stream, and a small
 REST surface. Phase 0 wired the shell (map, theme sync, health); Phase 1 the
 AIS service + `/api/view` / `/api/vessel`; Phase 2 the conflict service +
-`/api/conflict/*`. Later layers (fuel / AI) attach to the same hub.
+`/api/conflict/*`; Phase 3 the fuel service + `/api/fuel/*`. The AI sidebar
+(Phase 4) attaches to the same hub.
 """
 from __future__ import annotations
 
@@ -21,9 +22,10 @@ from . import db
 from .ais import AisService
 from .conflict import ConflictService, _iso_to_sort
 from .config import config_path, db_path
+from .fuel import FuelService
 
 WEB = files("omocrisismonitor").joinpath("web")
-__version__ = "0.3.1"
+__version__ = "0.4.0"
 
 
 class Hub:
@@ -86,9 +88,11 @@ def create_app(cfg: SimpleNamespace) -> FastAPI:
         app.state.db = db.init(db_path())
         app.state.ais = AisService(cfg, app.state.hub, app.state.db)
         app.state.conflict = ConflictService(cfg, app.state.hub, app.state.db)
+        app.state.fuel = FuelService(cfg, app.state.hub, app.state.db)
         watcher = asyncio.create_task(_watch_theme(app))
         await app.state.ais.start()
         await app.state.conflict.start()
+        await app.state.fuel.start()
         try:
             yield
         finally:
@@ -97,6 +101,7 @@ def create_app(cfg: SimpleNamespace) -> FastAPI:
                 await watcher
             await app.state.ais.stop()
             await app.state.conflict.stop()
+            await app.state.fuel.stop()
             app.state.db.close()
 
     app.router.lifespan_context = lifespan
@@ -150,7 +155,7 @@ def create_app(cfg: SimpleNamespace) -> FastAPI:
                 "layers": {  # Phase gates — flipped on as each phase lands
                     "ais": True,
                     "conflict": True,
-                    "fuel": False,
+                    "fuel": True,
                     "ai": False,
                     "alerts": False,
                 },
@@ -161,6 +166,10 @@ def create_app(cfg: SimpleNamespace) -> FastAPI:
                 "conflict": {
                     "window_days": cfg.conflict.window_days,
                     "refresh_h": cfg.conflict.refresh_h,
+                },
+                "fuel": {
+                    "unit": cfg.ui.fuel_unit,
+                    "currency": cfg.ui.units_currency,
                 },
             }
         )
@@ -222,6 +231,26 @@ def create_app(cfg: SimpleNamespace) -> FastAPI:
         """Manual kick — the layer normally refreshes on its own timer."""
         totals = await app.state.conflict.refresh()
         return JSONResponse({"ok": True, **totals})
+
+    # ---- fuel (crude + retail) ------------------------------------
+    @app.get("/api/fuel/bootstrap")
+    async def fuel_bootstrap() -> JSONResponse:
+        return JSONResponse(app.state.fuel.snapshot())
+
+    @app.get("/api/fuel/crude")
+    async def fuel_crude(symbol: str = "wti", days: int = 180) -> JSONResponse:
+        if symbol not in ("wti", "brent"):
+            raise HTTPException(422, "symbol must be wti or brent")
+        return JSONResponse(
+            {"symbol": symbol, "days": days,
+             "series": app.state.fuel.crude_series(symbol, max(1, min(days, 3650)))}
+        )
+
+    @app.get("/api/fuel/retail")
+    async def fuel_retail(kind: str = "gasoline") -> JSONResponse:
+        if kind not in ("gasoline", "diesel"):
+            raise HTTPException(422, "kind must be gasoline or diesel")
+        return JSONResponse(app.state.fuel.retail_map(kind))
 
     # ---- WebSocket ----------------------------------------------------
     @app.websocket("/ws")

@@ -33,6 +33,13 @@ def client(tmp_path, monkeypatch):
         "omocrisismonitor.conflict.ConflictService.detail", _cf_no_detail
     )
 
+    # ...and the fuel service: no Yahoo / GlobalPetrolPrices fetches in a test.
+    async def _noop(self, *a, **k):
+        return None
+
+    for m in ("_tick_crude", "_backfill_crude", "_scrape_retail"):
+        monkeypatch.setattr(f"omocrisismonitor.fuel.FuelService.{m}", _noop)
+
     cfg = config.load(tmp_path / "none.toml")
     cfg.map.maptiler_key = "TESTKEY"
     with TestClient(create_app(cfg)) as c:
@@ -55,11 +62,13 @@ def test_bootstrap_shape(client):
     assert j["map"]["maptiler_key"] == "TESTKEY"
     assert len(j["map"]["center"]) == 2
     assert set(j["layers"]) == {"ais", "conflict", "fuel", "ai", "alerts"}
-    # phases 1-2 live, everything after still gated off
-    assert j["layers"]["ais"] is True and j["layers"]["conflict"] is True
-    assert all(v is False for k, v in j["layers"].items() if k not in ("ais", "conflict"))
+    # phases 1-3 live, everything after still gated off
+    live = ("ais", "conflict", "fuel")
+    assert all(j["layers"][k] is True for k in live)
+    assert all(v is False for k, v in j["layers"].items() if k not in live)
     assert j["ais"]["throttle_ms"] > 0 and j["ais"]["stale_after_s"] > 0
     assert j["conflict"]["window_days"] > 0 and j["conflict"]["refresh_h"] > 0
+    assert j["fuel"]["unit"] and j["fuel"]["currency"]
 
 
 def test_view_accepts_bbox(client):
@@ -114,6 +123,30 @@ def test_conflict_detail_unknown_is_404(client):
 def test_conflict_manual_refresh(client):
     j = client.post("/api/conflict/refresh").json()
     assert j["ok"] is True and "added" in j
+
+
+def test_fuel_bootstrap_shape(client):
+    j = client.get("/api/fuel/bootstrap").json()
+    assert set(j) >= {"crude", "source", "retail_updated", "retail_stale"}
+    assert isinstance(j["crude"], dict)          # empty DB in tests
+
+
+def test_fuel_crude_series_empty(client):
+    j = client.get("/api/fuel/crude?symbol=brent&days=30").json()
+    assert j["symbol"] == "brent" and j["series"] == []
+
+
+def test_fuel_crude_rejects_bad_symbol(client):
+    assert client.get("/api/fuel/crude?symbol=gold").status_code == 422
+
+
+def test_fuel_retail_empty_map(client):
+    j = client.get("/api/fuel/retail?kind=diesel").json()
+    assert j["kind"] == "diesel" and j["prices"] == {}
+
+
+def test_fuel_retail_rejects_bad_kind(client):
+    assert client.get("/api/fuel/retail?kind=kerosene").status_code == 422
 
 
 def test_theme_css_falls_back_to_bundled(client):

@@ -1,5 +1,46 @@
 # Changelog
 
+## 0.4.0 — 2026-09-10 — Phase 3: Fuel layer (crude + retail choropleth)
+
+- `fuel.py` — `FuelService` with two independent loops:
+  - **Crude** (`crude_poll_s`, default 15 min). Pluggable `CrudeSource`:
+    `YahooCrude` (default, no key — `query1.finance.yahoo.com/v8/finance/chart`
+    for `CL=F`/`BZ=F`, ~15 min delayed, intraday + 1 y history) or `EiaCrude`
+    (used when `fuel.eia_key` is set — official EIA API, daily). First run
+    backfills ~1 y of daily closes; each tick upserts `fuel_crude` and emits
+    `fuel_tick`. Day-over-day % on the tile is computed from the stored series
+    (Yahoo's `chartPreviousClose` is window-relative, not "yesterday").
+  - **Retail** (`retail_poll_h`, default 24 h). Light scrape of
+    globalpetrolprices.com's gasoline + diesel ranking pages — the country list
+    and the price bars are parallel ranked sequences, zipped by index
+    (`parse_gpp`). Label → ISO2 via `_fuel_geo.GPP_ISO` (~170 hand-mapped
+    names); unmapped are dropped and reported. Any fetch failure keeps the
+    last-known rows and sets `retail_stale` (→ `fuel_status` `stale`).
+  - `httpx` client and crude source both injectable for tests.
+- `_fuel_geo.py` — GlobalPetrolPrices country label → ISO-3166 alpha-2 map.
+- `server.py` — `FuelService` in the lifespan; `GET /api/fuel/bootstrap`
+  (latest crude + retail freshness), `GET /api/fuel/crude?symbol=&days=`
+  (stored series for the sparkline), `GET /api/fuel/retail?kind=` (ISO →
+  USD/litre for the choropleth). `fuel` gate on.
+- `web/fuel.js` — layer module: a left-docked panel (WTI/Brent price tiles with
+  day-over-day %, a hand-rolled inline-SVG dual sparkline, a petrol/diesel
+  toggle, a price-ramp legend, retail freshness / STALE line) **and** a retail
+  pump-price world choropleth — a `fill` layer over the vendored countries
+  GeoJSON, recoloured on a semantic green→red ramp, inserted below the AIS /
+  conflict overlays. Country click → price popup. Live via `fuel_tick` /
+  `fuel_retail_ready` / `fuel_status`.
+- `web/vendor/world-countries.geo.json` — Natural Earth 110m admin-0, slimmed to
+  `{iso, name}` + 2-dp coords (~170 KB). No CDN.
+- `index.html` / `app.css` — load `fuel.js`, un-gate FUEL, panel + legend +
+  themed map-popup styling.
+- `config` — `[fuel]` adds `eia_key` (optional; empty → Yahoo).
+- Tests: `test_fuel.py` (GPP parser, Yahoo + EIA sources, crude tick/backfill,
+  retail ISO mapping + unknown-drop, STALE on HTTP error, reads) via
+  `MockTransport`; `test_server.py` covers the three `/api/fuel/*` routes +
+  bad-param 422s. 53 pass.
+- Live smoke: Yahoo WTI/Brent + 1 y backfill, GlobalPetrolPrices scrape → 170
+  gasoline / 169 diesel countries mapped to ISO.
+
 ## 0.3.1 — 2026-09-10 — Phase 2 polish: intel-panel media
 
 - `web/conflict.js` — the conflict detail panel now surfaces what GeoConfirmed

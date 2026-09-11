@@ -60,6 +60,10 @@ DEFAULTS: dict = {
         # crude benchmarks (live-ish) + retail-per-country choropleth (weekly)
         "crude_poll_s": 900,
         "retail_poll_h": 24,
+        # crude source: Yahoo's public chart endpoint (no key, ~15 min delayed,
+        # intraday + history). If eia_key is set we use the EIA API instead
+        # (official, daily only) — free key at https://www.eia.gov/opendata/.
+        "eia_key": "",
     },
     "ai": {
         # AI sidebar runs through the `claude` CLI on the user's subscription

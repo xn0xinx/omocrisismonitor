@@ -31,8 +31,10 @@ window_days = 90           # what the window draws / how far back the scrubber w
 theatres = []              # [] = all active; or ["ukraine", "israel", "iran"]
 
 [fuel]
-crude_poll_s = 900         # Brent/WTI benchmarks
-retail_poll_h = 24         # per-country pump prices refresh at most daily
+crude_poll_s = 900         # Brent/WTI benchmarks (Yahoo chart endpoint, no key)
+retail_poll_h = 24         # per-country pump prices scrape, at most daily
+eia_key = ""               # set -> use the EIA API for crude instead (official,
+                           # daily only). Free key: https://www.eia.gov/opendata/
 
 [ai]
 enabled = true

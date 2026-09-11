@@ -230,3 +230,53 @@ body.fs .badge-2 { top: 42px; }
 
 body.fs #scrubber { opacity: 0; transition: opacity .3s; }
 body.fs:hover #scrubber { opacity: 1; }
+
+/* ---- fuel: left panel (crude tiles + sparkline + retail legend) --- */
+#fuel-panel {
+  position: fixed; left: 12px; top: 232px; z-index: 10;
+  width: 208px; padding: 8px 10px 10px;
+  background: color-mix(in srgb, var(--ocm-surface) 90%, transparent);
+  border: 1px solid var(--ocm-border); border-left: 2px solid var(--ocm-accent);
+  border-radius: 4px; backdrop-filter: blur(6px);
+  font-size: 11px; letter-spacing: .02em;
+}
+#fuel-panel header {
+  display: flex; align-items: baseline; gap: 6px; margin-bottom: 6px;
+  font: 600 10px/1 "JetBrainsMono Nerd Font", monospace;
+  letter-spacing: .16em; color: var(--ocm-dim); text-transform: uppercase;
+}
+#fuel-panel .fsrc { font-size: 8px; letter-spacing: .08em; opacity: .7; }
+.ftile { display: flex; align-items: baseline; gap: 6px; padding: 2px 0; }
+.ftile .fsym { flex: none; width: 42px; color: var(--ocm-dim); font-size: 10px; letter-spacing: .1em; }
+.ftile .fpx  { flex: 1 1 auto; color: var(--ocm-fg); font-variant-numeric: tabular-nums; }
+.ftile .fchg { flex: none; font-size: 10px; font-variant-numeric: tabular-nums; }
+.ftile .fchg.up { color: var(--ocm-ok); }
+.ftile .fchg.dn { color: var(--ocm-err); }
+.ftile .fchg.flat { color: var(--ocm-dim); }
+.fspark { display: block; width: 100%; height: 46px; margin: 4px 0 2px; overflow: visible; }
+.fspark .fsl { fill: var(--ocm-dim); font-size: 7px; font-family: monospace; }
+.fret { margin-top: 6px; padding-top: 8px; border-top: 1px solid var(--ocm-border); }
+.fret-tabs { display: flex; gap: 4px; margin-bottom: 6px; }
+.fret-tabs button {
+  flex: 1 1 auto; padding: 3px 0; cursor: pointer;
+  background: transparent; border: 1px solid var(--ocm-border); border-radius: 3px;
+  color: var(--ocm-dim); font: 600 9px/1 "JetBrainsMono Nerd Font", monospace;
+  letter-spacing: .1em; text-transform: uppercase;
+}
+.fret-tabs button.on { color: var(--ocm-fg); border-color: var(--ocm-accent);
+  background: color-mix(in srgb, var(--ocm-accent) 14%, var(--ocm-surface)); }
+.flegend { height: 9px; border-radius: 2px; border: 1px solid var(--ocm-border); }
+.flrow { display: flex; justify-content: space-between; margin-top: 2px;
+  font-size: 8px; color: var(--ocm-dim); letter-spacing: .04em; }
+.fret-meta { margin-top: 6px; font-size: 9px; color: var(--ocm-dim); letter-spacing: .06em; }
+.fret-meta.stale { color: var(--ocm-warn); }
+
+.maplibregl-popup.ocm-pop .maplibregl-popup-content {
+  background: var(--ocm-surface); color: var(--ocm-fg);
+  border: 1px solid var(--ocm-border); border-radius: 4px;
+  font: 11px/1.4 "JetBrainsMono Nerd Font", monospace; padding: 6px 9px;
+}
+.maplibregl-popup.ocm-pop .maplibregl-popup-tip { border-top-color: var(--ocm-surface); }
+
+body.fs #fuel-panel { opacity: 0; transition: opacity .3s; }
+body.fs:hover #fuel-panel { opacity: 1; }
