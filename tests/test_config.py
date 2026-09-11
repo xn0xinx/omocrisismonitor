@@ -7,6 +7,7 @@ def test_defaults_load_without_file(tmp_path):
     assert cfg.ui.units_currency == "USD"
     assert cfg.history.prune_after_days == 0
     assert isinstance(cfg.map.center, list) and len(cfg.map.center) == 2
+    assert cfg.conflict.window_days == 7   # hard cap, enforced everywhere — see conflict.py
 
 
 def test_user_toml_deep_merges(tmp_path):

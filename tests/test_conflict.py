@@ -11,6 +11,12 @@ from omocrisismonitor.conflict import ConflictService, _iso_to_sort, _today_sort
 
 def _cfg(tmp_path):
     c = config.load(tmp_path / "none.toml")   # DEFAULTS
+    # These tests exercise the ingest/window filtering logic directly, against
+    # fixture offsets (-3, -10, -40, -5000 days) chosen to be clearly "recent"
+    # vs "too old" under a generous window — independent of whatever the
+    # shipped *default* window_days is (currently 7; see test_config.py /
+    # test_server.py for that).
+    c.conflict.window_days = 90
     return c
 
 
@@ -194,6 +200,16 @@ async def test_recent_highlights_for_ai_sidebar(tmp_path):
     assert h["by_theatre"] == {"ukraine": 2, "ven": 1}   # busiest first isn't required here
     assert h["highlights"]["ukraine"] == ["test event", "test event"]  # per_theatre=2
     assert h["highlights"]["ven"] == ["test event"]                    # only 1 event exists
+
+
+async def test_recent_highlights_scopes_to_a_bbox(tmp_path):
+    svc, con = _svc(tmp_path)
+    await svc.refresh()
+    box = [[45.0, 25.0], [55.0, 40.0]]     # covers both ukraine points, not venezuela
+    h = await svc.recent_highlights(days=45, bbox=box)
+    assert h["bbox"] == box
+    assert h["by_theatre"] == {"ukraine": 2}      # venezuela excluded by the box
+    assert "ven" not in h["by_theatre"]
 
 
 async def test_detail_fetch_and_cache(tmp_path):

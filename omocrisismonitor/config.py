@@ -48,10 +48,12 @@ DEFAULTS: dict = {
         # full re-pull of every theatre's GeoJSON feed this often (server-side;
         # the window only ever gets our trimmed slice). Ukraine's feed is ~16 MB.
         "refresh_h": 6,
-        # recency cap: the window loads events newer than this, and it's the
-        # floor the date scrubber can wind back to. History still accrues in the
-        # DB forever (Q11) — this only bounds what's drawn.
-        "window_days": 90,
+        # hard cap, enforced everywhere (ingest floor, default draw window, and
+        # the scrubber's own range) — nothing older than this is ever ingested
+        # or reachable through the app, full stop. The DB doesn't purge rows
+        # that age out (history.prune_after_days still governs storage), they
+        # just become unreachable through any route once past this floor.
+        "window_days": 7,
         # [] = every active theatre GeoConfirmed lists; or pin a subset of url
         # slugs, e.g. ["ukraine", "israel", "iran"].
         "theatres": [],

@@ -1,5 +1,49 @@
 # Changelog
 
+## 0.7.0 — 2026-09-10 — 7-day hard cap + region-scoped AI
+
+Feedback from actually using it: the map kept surfacing months-old conflict
+events, and the AI sidebar read the same "whole world" digest no matter where
+the map was zoomed. Both fixed:
+
+- **Conflict window hard-capped to 7 days, everywhere.** `conflict.window_days`
+  default `90 → 7`. It now governs the ingest floor (nothing older is even
+  pulled in), the default draw window, *and* the scrubber's own range — no
+  older data is reachable through any route, not just hidden by the default UI.
+  `events_geojson()`'s `since` is clamped to the floor even if a caller
+  explicitly asks further back. History storage itself is unchanged
+  (`history.prune_after_days` still governs that) — old rows just become
+  unreachable through the app once they age out, not deleted.
+- **The AI sidebar is now region-aware.** Previously only the AIS viewport was
+  ever reported to the server, and only while the AIS layer happened to be
+  toggled on — so the AI's conflict summary was always a global digest.
+  - `app.js` now reports the map's current bounds to the server on every
+    pan/zoom via a new, layer-independent `POST /api/view/current`,
+    regardless of which data layers are on (`ais.js`'s `/api/view` is
+    unchanged and stays gated to the AIS toggle — it drives the actual
+    aisstream *subscription*, which we don't want to open just to answer this).
+  - `AiService.current_view` picks that up; `ConflictService.recent_highlights`
+    gained a `bbox` param so the conflict half of the AI's context is scoped to
+    wherever the user is actually looking, not the whole world.
+  - The system prompt now asks the model to open by naming the region when a
+    view is given, and to say plainly if the box is quiet rather than padding.
+  - **Deliberately manual-refresh-only** — panning does *not* trigger an
+    auto-refresh (`AiService._signature()` still excludes the view, so the
+    auto-loop only reacts to real-world change). Instead `web/ai.js` compares
+    the current map bounds against the bbox the last summary was generated
+    for and shows a small "region changed — refresh?" hint in the drawer
+    header when they no longer overlap; clicking it just calls refresh.
+- Tests: `test_conflict.py` covers `recent_highlights(bbox=…)`; `test_ai.py`
+  covers `current_view` flowing through `_gather()`/`_prompt()`/`refresh()`;
+  `test_server.py` covers `/api/view/current` and the hard-cap clamp; the
+  fixture-heavy conflict tests now explicitly widen `window_days` for their
+  own fixture timings rather than relying on the shipped default. 112 pass.
+- Verified live against real Ukraine data: default `/api/conflict/events`
+  returned 151 events, every one ≤7 days old; an AI refresh with no view gave
+  a whole-world digest, and a refresh scoped to a Ukraine-region bbox gave a
+  genuinely different, region-specific answer (correctly noted "no events in
+  *this* box," not a repeat of the global one).
+
 ## 0.6.1 — 2026-09-10 — AI drawer: fix a stuck "thinking…" spinner
 
 - `web/ai.js` — `fetch()` only rejects on a network failure, not on an HTTP

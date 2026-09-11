@@ -5,11 +5,26 @@
   const { hub } = window.OCM;
   const $ = (s) => document.querySelector(s);
 
+  let map = null;
   let open = false;
   let thinking = false;
-  let summary = null;      // { text, ts, model, reason, cost_usd }
+  let summary = null;      // { text, ts, model, reason, cost_usd, view }
   let errorMsg = null;     // set on a failed refresh/load; cleared once we hear back
   let watchdog = 0;        // client-side backstop — see requestRefresh()
+
+  /* has the map moved meaningfully away from the region the current summary
+     covers? Manual-refresh-only by design (see SKILL/CHANGELOG) — this never
+     triggers a claude call on its own, it just surfaces a hint. */
+  function viewChanged() {
+    if (!map || !summary) return false;
+    const b = map.getBounds();
+    const cur = [[b.getSouth(), b.getWest()], [b.getNorth(), b.getEast()]];
+    if (!summary.view) return true;              // was global, now we have a specific view
+    const [[s1, w1], [n1, e1]] = summary.view;
+    const [[s2, w2], [n2, e2]] = cur;
+    const overlaps = s2 < n1 && n2 > s1 && w2 < e1 && e2 > w1;
+    return !overlaps;
+  }
 
   function ago(ts) {
     const s = Date.now() / 1000 - ts;
@@ -39,6 +54,7 @@
         (summary.cost_usd ? ` · $${summary.cost_usd.toFixed(3)}` : "")
       : "";
     el.classList.toggle("thinking", thinking);
+    $("#ai-hint").hidden = thinking || !viewChanged();
   }
 
   async function load() {
@@ -109,6 +125,7 @@
       btn.classList.toggle("on", open);
     });
     $("#ai-refresh").addEventListener("click", requestRefresh);
+    $("#ai-hint").addEventListener("click", requestRefresh);
     $("#ai-close").addEventListener("click", () => { setOpen(false); btn.classList.remove("on"); });
   }
 
@@ -132,10 +149,12 @@
   }
 
   hub.addEventListener("map-ready", async () => {
+    map = window.OCM.map;
     wireRail();
     wireBackendPicker();
     await load();          // hydrate a prior summary without forcing a run
   });
+  hub.addEventListener("view-changed", () => render());   // recompute the region hint only
   hub.addEventListener("ai_status", (e) => {
     thinking = e.detail.state === "thinking";
     if (e.detail.state === "error") {
@@ -151,7 +170,7 @@
     thinking = false;
     errorMsg = null;
     summary = { text: e.detail.text, ts: e.detail.ts, model: e.detail.model,
-               reason: e.detail.reason, cost_usd: e.detail.cost_usd };
+               reason: e.detail.reason, cost_usd: e.detail.cost_usd, view: e.detail.view };
     render();
   });
   // note: `dismiss` is NOT wired here — ais.js/conflict.js fire it on every

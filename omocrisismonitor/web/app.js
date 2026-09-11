@@ -129,8 +129,13 @@ async function initMap() {
     $("#msg").textContent = "map ready";
     updateViewInfo();
     hub.dispatchEvent(new Event("map-ready"));
+    sendCurrentView();
   });
-  map.on("moveend", () => { updateViewInfo(); hub.dispatchEvent(new Event("view-changed")); });
+  map.on("moveend", () => {
+    updateViewInfo();
+    hub.dispatchEvent(new Event("view-changed"));
+    sendCurrentView();
+  });
   map.on("error", (e) => console.warn("map:", e && e.error && e.error.message));
 }
 
@@ -138,6 +143,23 @@ function updateViewInfo() {
   if (!map) return;
   const c = map.getCenter();
   $("#viewinfo").textContent = `${c.lat.toFixed(2)}, ${c.lng.toFixed(2)}  z${map.getZoom().toFixed(1)}`;
+}
+
+/* ---- "what is the user looking at", independent of any layer's on/off
+   state (ais.js's /api/view is separate — that one drives the aisstream
+   subscription and stays gated by the AIS toggle so we don't open a socket
+   just to answer this). Consumed today by the AI sidebar. */
+let viewTimer = 0;
+function sendCurrentView() {
+  clearTimeout(viewTimer);
+  viewTimer = setTimeout(() => {
+    if (!map) return;
+    const b = map.getBounds();
+    fetch("api/view/current", {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ bbox: [[b.getSouth(), b.getWest()], [b.getNorth(), b.getEast()]] }),
+    }).catch(() => {});
+  }, 550);
 }
 
 /* ---- websocket ----------------------------------------------------- */

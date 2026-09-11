@@ -27,7 +27,9 @@ stale_after_s = 900        # drop a ship from the map if unheard this long
 [conflict]
 api_base = "https://geoconfirmed.org"   # GeoConfirmed v2 API, public reads
 refresh_h = 6              # full re-pull of every theatre's feed (server-side)
-window_days = 90           # what the window draws / how far back the scrubber winds
+window_days = 7            # hard cap everywhere: ingest floor, default draw window,
+                           # and the scrubber's own range. Nothing older is ever
+                           # ingested or reachable (DB storage still keeps forever).
 theatres = []              # [] = all active; or ["ukraine", "israel", "iran"]
 
 [fuel]

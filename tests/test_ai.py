@@ -164,6 +164,43 @@ async def test_prompt_carries_conflict_ais_and_fuel_context(tmp_path):
     assert '"usd": 100.0' in prompt
 
 
+async def test_gather_passes_current_view_into_conflict_scoping(tmp_path):
+    calls = []
+
+    class ScopedConflict(FakeConflict):
+        async def recent_highlights(self, **kw):
+            calls.append(kw.get("bbox"))
+            return await super().recent_highlights(**kw)
+
+    svc, _ = _svc(tmp_path)
+    svc.conflict = ScopedConflict()
+    box = [[10.0, 20.0], [30.0, 40.0]]
+
+    ctx = await svc._gather()          # no view set yet -> global
+    assert calls == [None] and ctx["view"] is None
+
+    svc.current_view = box
+    ctx = await svc._gather()
+    assert calls == [None, box] and ctx["view"] == box
+
+
+def test_prompt_names_the_region_when_a_view_is_set():
+    box = [[10.0, 20.0], [30.0, 40.0]]
+    with_view = AiService._prompt({"conflict": {}, "ais": {}, "fuel": {}, "view": box})
+    without_view = AiService._prompt({"conflict": {}, "ais": {}, "fuel": {}, "view": None})
+    assert "MAP VIEW" in with_view and str(box) in with_view
+    assert "no specific region" in without_view
+
+
+async def test_refresh_records_the_view_the_summary_was_generated_for(tmp_path):
+    run, _ = _runner()
+    svc, _ = _svc(tmp_path, runner=run)
+    box = [[1.0, 2.0], [3.0, 4.0]]
+    svc.current_view = box
+    out = await svc.refresh()
+    assert out["view"] == box
+
+
 async def test_start_and_stop_are_clean(tmp_path):
     run, _ = _runner()
     svc, _ = _svc(tmp_path, runner=run)

@@ -315,6 +315,14 @@ body.fs:hover #fuel-panel { opacity: 1; }
 }
 #ai-backend:disabled { opacity: .5; cursor: default; }
 #ai-meta { flex: none; font-size: 10px; letter-spacing: .04em; }
+#ai-hint {
+  flex: none; padding: 2px 8px; border-radius: 3px; cursor: pointer;
+  background: color-mix(in srgb, var(--ocm-warn) 14%, var(--ocm-surface));
+  border: 1px solid var(--ocm-warn); color: var(--ocm-warn);
+  font: 600 9px/1.6 "JetBrainsMono Nerd Font", monospace; letter-spacing: .06em;
+  text-transform: uppercase;
+}
+#ai-hint:hover { background: color-mix(in srgb, var(--ocm-warn) 26%, var(--ocm-surface)); }
 #ai-drawer header button {
   flex: none; width: 22px; height: 22px; line-height: 1;
   background: transparent; border: 1px solid var(--ocm-border); border-radius: 3px;

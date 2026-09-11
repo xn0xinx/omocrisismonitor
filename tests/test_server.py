@@ -2,6 +2,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from omocrisismonitor import config
+from omocrisismonitor.conflict import _today_sort
 from omocrisismonitor.server import create_app
 
 
@@ -114,6 +115,23 @@ def test_view_rejects_malformed_bbox(client):
     assert r.status_code == 422
 
 
+def test_current_view_is_layer_independent_and_feeds_ai(client):
+    """/api/view/current is decoupled from the AIS toggle/subscription — it
+    only feeds AiService.current_view for region-scoped synthesis."""
+    box = [[10.0, 20.0], [30.0, 40.0]]
+    r = client.post("/api/view/current", json={"bbox": box})
+    assert r.status_code == 200 and r.json() == {"ok": True}
+    assert client.app.state.ai.current_view == box
+    assert client.app.state.ais._bbox is None      # never touches the AIS subscription
+
+    r2 = client.post("/api/view/current", json={"bbox": None})
+    assert r2.status_code == 200 and client.app.state.ai.current_view is None
+
+
+def test_current_view_rejects_malformed_bbox(client):
+    assert client.post("/api/view/current", json={"bbox": [1, 2, 3]}).status_code == 422
+
+
 def test_vessel_unknown_is_404(client):
     assert client.get("/api/vessel/999000111").status_code == 404
 
@@ -125,14 +143,25 @@ def test_conflict_bootstrap_shape(client):
 
 
 def test_conflict_events_empty_featurecollection(client):
-    j = client.get("/api/conflict/events?until=20700&since=20600").json()
+    hi, lo = _today_sort(), _today_sort() - 2   # within the 7-day hard cap
+    j = client.get(f"/api/conflict/events?until={hi}&since={lo}").json()
     assert j["type"] == "FeatureCollection" and j["features"] == []
-    assert j["window"] == {"since_sort": 20600, "until_sort": 20700}
+    assert j["window"] == {"since_sort": lo, "until_sort": hi}
 
 
 def test_conflict_events_accepts_iso_dates(client):
-    j = client.get("/api/conflict/events?since=2026-06-01&until=2026-09-01").json()
-    assert j["window"]["since_sort"] == 20605 and j["window"]["until_sort"] == 20697
+    from datetime import datetime, timezone
+    today = _today_sort()
+    since_iso = datetime.fromtimestamp((today - 2) * 86400, tz=timezone.utc).strftime("%Y-%m-%d")
+    until_iso = datetime.fromtimestamp(today * 86400, tz=timezone.utc).strftime("%Y-%m-%d")
+    j = client.get(f"/api/conflict/events?since={since_iso}&until={until_iso}").json()
+    assert j["window"]["since_sort"] == today - 2 and j["window"]["until_sort"] == today
+
+
+def test_conflict_events_since_is_clamped_to_the_hard_cap(client):
+    # requesting a since far in the past never surfaces data older than window_days
+    j = client.get(f"/api/conflict/events?until={_today_sort()}&since=1").json()
+    assert j["window"]["since_sort"] == _today_sort() - 7   # default conflict.window_days
 
 
 def test_conflict_detail_unknown_is_404(client):

@@ -37,14 +37,18 @@ CLAUDE_DISALLOWED_TOOLS = [
 
 SYSTEM_PROMPT = (
     "You are the AI sidebar of OmoCrisisMonitor, a themed situational-awareness "
-    "console. You are given a JSON snapshot of conflict activity, shipping in "
-    "the user's current map view, and crude/retail fuel prices. Write a short, "
-    "dense, non-alarmist synthesis: plain text, no markdown, no headers, at "
-    "most 180 words. Cover, in this order: notable conflict developments in "
-    "the last day by theatre; whether any are near shipping lanes or "
-    "chokepoints given the ships currently in view; the crude and retail fuel "
-    "move. If a section has no data, say so in one clause and move on. Do not "
-    "editorialise beyond the given data."
+    "console. You are given the map view the user is currently looking at, a "
+    "JSON snapshot of conflict activity (scoped to that view when one is "
+    "given), shipping in the user's current AIS viewport, and crude/retail "
+    "fuel prices. Write a short, dense, non-alarmist synthesis: plain text, no "
+    "markdown, no headers, at most 180 words. If a specific map view is given, "
+    "open by naming the region/theatre it covers and keep the whole synthesis "
+    "scoped to it rather than writing a generic world overview. Cover, in this "
+    "order: notable conflict developments in the last day (in that region); "
+    "whether any are near shipping lanes or chokepoints given the ships "
+    "currently in view; the crude and retail fuel move. If a section has no "
+    "data, say so in one clause and move on. Do not editorialise beyond the "
+    "given data."
 )
 
 
@@ -162,6 +166,7 @@ class AiService:
             "gemini": GeminiBackend(cfg),
         }
         self.backend_key = cfg.ai.backend if cfg.ai.backend in self.backends else "claude"
+        self.current_view: list[list[float]] | None = None   # set by POST /api/view/current
         self.summary: dict | None = None
         self.busy = False
         self.last_run = 0.0
@@ -247,7 +252,7 @@ class AiService:
             self.summary = {
                 "text": text.strip(), "ts": time.time(), "model": model,
                 "backend": backend_key, "reason": reason,
-                "cost_usd": meta.get("cost_usd"),
+                "cost_usd": meta.get("cost_usd"), "view": ctx.get("view"),
             }
             self._sig = await self._signature()
             self.last_run = time.time()
@@ -260,18 +265,30 @@ class AiService:
             self.busy = False
 
     async def _gather(self) -> dict:
+        view = self.current_view
         conflict_ctx = (
-            await self.conflict.recent_highlights() if self.conflict is not None else {}
+            await self.conflict.recent_highlights(bbox=view) if self.conflict is not None else {}
         )
         ais_ctx = self.ais.summary() if self.ais is not None else {}
         fuel_ctx = self.fuel.snapshot() if self.fuel is not None else {}
-        return {"conflict": conflict_ctx, "ais": ais_ctx, "fuel": fuel_ctx}
+        return {"conflict": conflict_ctx, "ais": ais_ctx, "fuel": fuel_ctx, "view": view}
 
     @staticmethod
     def _prompt(ctx: dict) -> str:
+        view = ctx.get("view")
+        view_line = (
+            f"MAP VIEW: the user is currently zoomed into the box {view} "
+            "([[south,west],[north,east]], degrees) — the conflict data below is "
+            "scoped to that box, not the whole world. Ground your synthesis in "
+            "this region by name.\n\n"
+            if view else
+            "MAP VIEW: no specific region — this is a whole-world view, so the "
+            "conflict data below covers every tracked theatre.\n\n"
+        )
         return (
-            "CONFLICT (last-day event counts by theatre, plus a few recent "
-            f"descriptions for the busiest ones):\n{json.dumps(ctx['conflict'])}\n\n"
-            f"SHIPPING (vessels in the user's current map view):\n{json.dumps(ctx['ais'])}\n\n"
+            view_line +
+            "CONFLICT (last-day event counts by theatre in the map view above, "
+            f"plus a few recent descriptions for the busiest ones):\n{json.dumps(ctx['conflict'])}\n\n"
+            f"SHIPPING (vessels in the user's current AIS viewport):\n{json.dumps(ctx['ais'])}\n\n"
             f"FUEL (latest crude + retail freshness):\n{json.dumps(ctx['fuel'])}"
         )

@@ -14,6 +14,7 @@ import time
 from importlib.resources import files
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Any
 
 from fastapi import Body, FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse, JSONResponse, Response
@@ -28,7 +29,18 @@ from .config import config_path, db_path
 from .fuel import FuelService
 
 WEB = files("omocrisismonitor").joinpath("web")
-__version__ = "0.6.1"
+__version__ = "0.7.0"
+
+
+def _parse_bbox(bbox: Any) -> list[list[float]] | None:
+    """payload['bbox'] -> [[s,w],[n,e]] of floats, or None. Raises HTTPException(422)."""
+    if bbox is None:
+        return None
+    try:
+        (s, w), (n, e) = bbox
+        return [[float(s), float(w)], [float(n), float(e)]]
+    except (TypeError, ValueError):
+        raise HTTPException(422, "bbox must be [[s,w],[n,e]]") from None
 
 
 class Hub:
@@ -202,16 +214,20 @@ def create_app(cfg: SimpleNamespace) -> FastAPI:
 
     @app.post("/api/view")
     async def set_view(payload: dict = Body(...)) -> JSONResponse:
-        """Window viewport → AIS subscription box. bbox = [[s,w],[n,e]] or null."""
-        bbox = payload.get("bbox")
-        if bbox is not None:
-            try:
-                (s, w), (n, e) = bbox
-                bbox = [[float(s), float(w)], [float(n), float(e)]]
-            except (TypeError, ValueError):
-                raise HTTPException(422, "bbox must be [[s,w],[n,e]]") from None
-        app.state.ais.set_view(bbox)
+        """Window viewport → AIS subscription box. bbox = [[s,w],[n,e]] or null.
+        Only sent while the AIS layer is toggled on — see /api/view/current for
+        the layer-independent "what is the user looking at" signal."""
+        app.state.ais.set_view(_parse_bbox(payload.get("bbox")))
         return JSONResponse({"ok": True, "state": app.state.ais.state})
+
+    @app.post("/api/view/current")
+    async def set_current_view(payload: dict = Body(...)) -> JSONResponse:
+        """The shell reports the map's viewport here on every pan/zoom,
+        regardless of which data layers are toggled on — this is what the AI
+        sidebar uses to scope its conflict summary to wherever you're looking,
+        independent of whether AIS happens to be enabled."""
+        app.state.ai.current_view = _parse_bbox(payload.get("bbox"))
+        return JSONResponse({"ok": True})
 
     @app.get("/api/vessel/{mmsi}")
     async def vessel(mmsi: int) -> JSONResponse:
