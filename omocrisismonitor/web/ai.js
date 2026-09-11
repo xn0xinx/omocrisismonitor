@@ -8,6 +8,8 @@
   let open = false;
   let thinking = false;
   let summary = null;      // { text, ts, model, reason, cost_usd }
+  let errorMsg = null;     // set on a failed refresh/load; cleared once we hear back
+  let watchdog = 0;        // client-side backstop — see requestRefresh()
 
   function ago(ts) {
     const s = Date.now() / 1000 - ts;
@@ -22,7 +24,9 @@
     $("#ai-cursor").hidden = !thinking;
     $("#ai-refresh").disabled = thinking;
     let body;
-    if (thinking && !summary) {
+    if (errorMsg) {
+      body = errorMsg;
+    } else if (thinking && !summary) {
       body = "gathering conflict / shipping / fuel state and asking claude…";
     } else if (!summary) {
       body = "no synthesis yet — hit refresh, or wait for something notable to change.";
@@ -39,20 +43,54 @@
 
   async function load() {
     try {
-      const j = await fetch("api/ai/summary").then((r) => r.json());
+      const r = await fetch("api/ai/summary");
+      if (!r.ok) {
+        errorMsg = r.status === 404
+          ? "the AI sidebar isn't on this running server — it may predate this build; relaunch omocrisismonitor."
+          : `couldn't load the AI summary (${r.status}).`;
+        return;
+      }
+      const j = await r.json();
       summary = j.summary || null;
       thinking = !!j.busy;
-    } catch { /* stay on whatever we had */ }
-    render();
+    } catch { /* offline for a moment — stay on whatever we had */ } finally {
+      render();
+    }
   }
 
   async function requestRefresh() {
     if (thinking) return;
     thinking = true;
+    errorMsg = null;
     render();
+    // a stuck "thinking…" forever (e.g. a stale server, or the WS drops
+    // right as the reply lands) is worse than a wrong-but-recoverable error —
+    // this backstop always resolves it, even if the request "succeeds" at
+    // the HTTP level but nothing ever calls back.
+    clearTimeout(watchdog);
+    watchdog = setTimeout(() => {
+      thinking = false;
+      errorMsg = "no response after 2 minutes — the AI CLI may be stuck, or this server predates this feature. Try again, or restart the app.";
+      render();
+    }, 130000);
     try {
-      await fetch("api/ai/refresh", { method: "POST" });
-    } catch { thinking = false; render(); }
+      const r = await fetch("api/ai/refresh", { method: "POST" });
+      if (!r.ok) {
+        clearTimeout(watchdog);
+        thinking = false;
+        let detail = "";
+        try { detail = (await r.json()).detail || ""; } catch { /* not JSON */ }
+        errorMsg = r.status === 404
+          ? "the AI sidebar isn't on this running server — it may predate this build; relaunch omocrisismonitor."
+          : `refresh failed (${r.status})${detail ? ": " + detail : ""}.`;
+        render();
+      }
+    } catch {
+      clearTimeout(watchdog);
+      thinking = false;
+      errorMsg = "couldn't reach the server.";
+      render();
+    }
   }
 
   function setOpen(v) {
@@ -100,10 +138,18 @@
   });
   hub.addEventListener("ai_status", (e) => {
     thinking = e.detail.state === "thinking";
+    if (e.detail.state === "error") {
+      clearTimeout(watchdog);
+      errorMsg = e.detail.detail || "the AI backend reported an error.";
+    } else if (thinking) {
+      errorMsg = null;      // a fresh run superseded whatever we were showing
+    }
     render();
   });
   hub.addEventListener("ai_summary", (e) => {
+    clearTimeout(watchdog);
     thinking = false;
+    errorMsg = null;
     summary = { text: e.detail.text, ts: e.detail.ts, model: e.detail.model,
                reason: e.detail.reason, cost_usd: e.detail.cost_usd };
     render();

@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.6.1 — 2026-09-10 — AI drawer: fix a stuck "thinking…" spinner
+
+- `web/ai.js` — `fetch()` only rejects on a network failure, not on an HTTP
+  error status, so a non-2xx response from `/api/ai/refresh` (or a stale
+  server that predates the route entirely, returning 404) left `thinking`
+  `true` forever with nothing left to ever clear it — reproduced live: an
+  ~83-minute-old server process (started before Phase 4/5 landed) had none of
+  the AI/alerts routes, and the drawer hung on "thinking…" indefinitely.
+  Root cause was a stale process, not new code — the frontend files are
+  always read fresh from disk, but the Python backend only reloads on
+  restart. Fixed the underlying gap regardless: `requestRefresh()`/`load()`
+  now check `response.ok` and show a specific message (naming the 404 case),
+  and a 130s client-side watchdog always resolves the "thinking" state even
+  if the server never calls back at all — no more permanent hang from any
+  cause. `ai_status` `error` now clears the watchdog too.
+
 ## 0.6.0 — 2026-09-10 — Phase 5: watch-rule alerts + correlation readout
 
 - `alerts.py` — `AlertService`, three rule kinds evaluated on a poll loop

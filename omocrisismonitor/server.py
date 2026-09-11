@@ -28,7 +28,7 @@ from .config import config_path, db_path
 from .fuel import FuelService
 
 WEB = files("omocrisismonitor").joinpath("web")
-__version__ = "0.6.0"
+__version__ = "0.6.1"
 
 
 class Hub:
