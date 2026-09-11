@@ -1,5 +1,56 @@
 # Changelog
 
+## 0.6.0 — 2026-09-10 — Phase 5: watch-rule alerts + correlation readout
+
+- `alerts.py` — `AlertService`, three rule kinds evaluated on a poll loop
+  (`alerts.poll_s`, default 30s), firing a desktop notification
+  (`notify-send`) + a DB row (`alert_hit`) + a WS `alert_hit` event on a state
+  **transition**, not every poll while still tripped:
+  - `conflict_region` — new `conflict_event` rows since the rule's last check
+    (watermarked by `first_seen`, so a rule never replays history), filtered
+    by theatre and/or bbox, `min_new` threshold.
+  - `ship_box` — vessel count inside a bbox (optional AIS category) crosses
+    `min_count`. Reads `AisService` directly — viewport-scoped, so a box
+    outside every viewport ever opened always reads 0 (same "regions you've
+    had open" limitation as the correlation readout).
+  - `fuel_threshold` — WTI/Brent crosses above/below a value.
+  One bad rule can't sink the eval pass. `notifier=` seam for tests; the real
+  `notify-send` path is `pragma: no cover` (would pop a real desktop
+  notification in a test run) — verified live instead: a `fuel_threshold`
+  rule fired within one poll on the real WTI price and the notification path
+  ran end to end.
+- `correlate.py` — pure read/compute over data already in the DB, no new
+  source: given a bbox + day window, aligns daily conflict-event counts,
+  crude closes, and distinct AIS-track vessel sightings onto one day axis and
+  reports a Pearson r for conflict-vs-crude and conflict-vs-ships. An
+  all-zero ships series (no AIS coverage for that box) gets a note, not an
+  error. One entry point, `readout(con, bbox, days)`.
+- `ais.py` — `AisService.count_in_box(bbox, category=None)`, the `ship_box`
+  rule's read.
+- `server.py` — `AlertService` in the lifespan. `GET/POST /api/alerts/rules`,
+  `PATCH`/`DELETE /api/alerts/rules/{id}`, `GET /api/alerts/hits`,
+  `GET /api/correlate?bbox=s,w,n,e&days=`. `alerts` gate now tracks
+  `cfg.alerts.enabled`; bootstrap carries `alerts.{notify,poll_s}`.
+- `web/alerts.js` — the ALERTS rail button opens a right-docked panel (next to,
+  not on top of, `#detail`): watch-rule list (enable/disable, delete) + a
+  per-kind create form ("use current view" captures the map bbox for
+  `ship_box`), a recent-hits feed, and the correlation readout (an overlay
+  sparkline — conflict-count bars + a crude-price line — plus the r values and
+  any coverage notes).
+- `config` — `[alerts]` adds `poll_s`.
+- Tests: `test_alerts.py` (param validation, rule CRUD, watermark vs
+  edge-triggered evaluation for each kind, one-bad-rule isolation, notify
+  on/off, missing-binary swallowed) and `test_correlate.py` (the daily
+  aggregations, Pearson edge cases, end-to-end readout shape + notes). 105
+  pass. Live smoke: a real rule tripped on the live WTI price and fired
+  through the full notify pipeline; `/api/correlate` returned a proper
+  30-day readout.
+- **All five SPEC phases now shipped.** Deferred for later: a v2 could widen
+  `ship_box` beyond the currently-open viewport (would need AIS to persist
+  more than the sparse trail), richer conflict-region descriptions in hit
+  summaries, and a proper responsive layout pass now that five panels can be
+  open at once.
+
 ## 0.5.1 — 2026-09-10 — pluggable AI backend (Claude / Gemini)
 
 - `ai.py` — reworked to a pluggable `AiBackend` (same pattern as fuel.py's

@@ -57,4 +57,5 @@ start_fullscreen = false
 
 [alerts]
 enabled = true
-notify = true             # desktop notifications on watch-rule hits
+notify = true             # desktop notifications on watch-rule hits (notify-send)
+poll_s = 30                # how often rules are evaluated

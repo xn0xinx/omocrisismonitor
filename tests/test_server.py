@@ -46,6 +46,12 @@ def client(tmp_path, monkeypatch):
 
     monkeypatch.setattr("omocrisismonitor.ai.ClaudeBackend.run", _no_run)
 
+    # ...and alerts: never actually shell out to notify-send in a test.
+    async def _no_notify(self, title, body):
+        return None
+
+    monkeypatch.setattr("omocrisismonitor.alerts.AlertService._default_notify", _no_notify)
+
     cfg = config.load(tmp_path / "none.toml")
     cfg.map.maptiler_key = "TESTKEY"
     with TestClient(create_app(cfg)) as c:
@@ -68,10 +74,10 @@ def test_bootstrap_shape(client):
     assert j["map"]["maptiler_key"] == "TESTKEY"
     assert len(j["map"]["center"]) == 2
     assert set(j["layers"]) == {"ais", "conflict", "fuel", "ai", "alerts"}
-    # phases 1-4 live, alerts (phase 5) still gated off
-    live = ("ais", "conflict", "fuel", "ai")
+    # all five phases live
+    live = ("ais", "conflict", "fuel", "ai", "alerts")
     assert all(j["layers"][k] is True for k in live)
-    assert all(v is False for k, v in j["layers"].items() if k not in live)
+    assert set(j["layers"]) == set(live)
     assert j["ais"]["throttle_ms"] > 0 and j["ais"]["stale_after_s"] > 0
     assert j["conflict"]["window_days"] > 0 and j["conflict"]["refresh_h"] > 0
     assert j["fuel"]["unit"] and j["fuel"]["currency"]
@@ -81,6 +87,7 @@ def test_bootstrap_shape(client):
     assert keys == {"claude", "gemini"}
     assert next(b for b in j["ai"]["backends"] if b["key"] == "claude")["available"] is True
     assert next(b for b in j["ai"]["backends"] if b["key"] == "gemini")["available"] is False
+    assert j["alerts"]["poll_s"] > 0
 
 
 def test_view_accepts_bbox(client):
@@ -179,6 +186,54 @@ def test_ai_set_backend(client):
 
 def test_ai_set_backend_rejects_unknown(client):
     assert client.post("/api/ai/backend", json={"key": "grok"}).status_code == 422
+
+
+def test_alerts_rule_crud_roundtrip(client):
+    assert client.get("/api/alerts/rules").json() == []
+
+    r = client.post("/api/alerts/rules", json={
+        "kind": "fuel_threshold", "label": "WTI spike",
+        "params": {"symbol": "wti", "op": ">", "value": 100},
+    })
+    assert r.status_code == 200
+    rule = r.json()
+    assert rule["kind"] == "fuel_threshold" and rule["enabled"] is True
+    assert rule["params"] == {"symbol": "wti", "op": ">", "value": 100.0}
+
+    listed = client.get("/api/alerts/rules").json()
+    assert [r["id"] for r in listed] == [rule["id"]]
+
+    r2 = client.patch(f"/api/alerts/rules/{rule['id']}", json={"enabled": False})
+    assert r2.status_code == 200 and r2.json()["enabled"] is False
+
+    assert client.delete(f"/api/alerts/rules/{rule['id']}").json() == {"ok": True}
+    assert client.get("/api/alerts/rules").json() == []
+
+
+def test_alerts_create_rejects_bad_params(client):
+    r = client.post("/api/alerts/rules", json={"kind": "ship_box", "params": {}})
+    assert r.status_code == 422
+
+
+def test_alerts_patch_and_delete_unknown_rule_404(client):
+    assert client.patch("/api/alerts/rules/999", json={"enabled": True}).status_code == 404
+    assert client.delete("/api/alerts/rules/999").status_code == 404
+
+
+def test_alerts_hits_empty(client):
+    assert client.get("/api/alerts/hits").json() == []
+
+
+def test_correlate_readout_shape(client):
+    j = client.get("/api/correlate?bbox=10,40,20,50&days=30").json()
+    assert j["bbox"] == [[10.0, 40.0], [20.0, 50.0]] and j["days"] == 30
+    assert len(j["axis"]) == len(j["series"]["conflict"]) == 31
+    assert set(j["correlations"]) == {"conflict_vs_wti", "conflict_vs_brent", "conflict_vs_ships"}
+    assert any("AIS data" in n for n in j["notes"])
+
+
+def test_correlate_rejects_bad_bbox(client):
+    assert client.get("/api/correlate?bbox=not,a,bbox").status_code == 422
 
 
 def test_theme_css_falls_back_to_bundled(client):

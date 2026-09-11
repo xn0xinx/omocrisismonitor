@@ -2,7 +2,8 @@
 REST surface. Phase 0 wired the shell (map, theme sync, health); Phase 1 the
 AIS service + `/api/view` / `/api/vessel`; Phase 2 the conflict service +
 `/api/conflict/*`; Phase 3 the fuel service + `/api/fuel/*`; Phase 4 the AI
-sidebar + `/api/ai/*`. Alerts (Phase 5) attach to the same hub.
+sidebar + `/api/ai/*`; Phase 5 the alert service + `/api/alerts/*` and the
+correlation readout at `/api/correlate`.
 """
 from __future__ import annotations
 
@@ -18,15 +19,16 @@ from fastapi import Body, FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from . import db
+from . import correlate, db
 from .ai import AiService
 from .ais import AisService
+from .alerts import AlertService
 from .conflict import ConflictService, _iso_to_sort
 from .config import config_path, db_path
 from .fuel import FuelService
 
 WEB = files("omocrisismonitor").joinpath("web")
-__version__ = "0.5.1"
+__version__ = "0.6.0"
 
 
 class Hub:
@@ -94,11 +96,16 @@ def create_app(cfg: SimpleNamespace) -> FastAPI:
             cfg, app.state.hub,
             ais=app.state.ais, conflict=app.state.conflict, fuel=app.state.fuel,
         )
+        app.state.alerts = AlertService(
+            cfg, app.state.hub, app.state.db,
+            ais=app.state.ais, conflict=app.state.conflict, fuel=app.state.fuel,
+        )
         watcher = asyncio.create_task(_watch_theme(app))
         await app.state.ais.start()
         await app.state.conflict.start()
         await app.state.fuel.start()
         await app.state.ai.start()
+        await app.state.alerts.start()
         try:
             yield
         finally:
@@ -109,6 +116,7 @@ def create_app(cfg: SimpleNamespace) -> FastAPI:
             await app.state.conflict.stop()
             await app.state.fuel.stop()
             await app.state.ai.stop()
+            await app.state.alerts.stop()
             app.state.db.close()
 
     app.router.lifespan_context = lifespan
@@ -164,7 +172,7 @@ def create_app(cfg: SimpleNamespace) -> FastAPI:
                     "conflict": True,
                     "fuel": True,
                     "ai": bool(cfg.ai.enabled),
-                    "alerts": False,
+                    "alerts": bool(cfg.alerts.enabled),
                 },
                 "ais": {
                     "throttle_ms": cfg.ais.throttle_ms,
@@ -184,6 +192,10 @@ def create_app(cfg: SimpleNamespace) -> FastAPI:
                     "model": cfg.ai.model,
                     "backend": app.state.ai.backend_key,
                     "backends": app.state.ai.list_backends(),
+                },
+                "alerts": {
+                    "notify": cfg.alerts.notify,
+                    "poll_s": cfg.alerts.poll_s,
                 },
             }
         )
@@ -289,6 +301,51 @@ def create_app(cfg: SimpleNamespace) -> FastAPI:
         except KeyError:
             raise HTTPException(422, f"unknown backend {key!r}") from None
         return JSONResponse({"ok": True, "backend": app.state.ai.backend_key})
+
+    # ---- alerts (watch rules) --------------------------------------
+    @app.get("/api/alerts/rules")
+    async def alerts_list_rules() -> JSONResponse:
+        return JSONResponse(app.state.alerts.list_rules())
+
+    @app.post("/api/alerts/rules")
+    async def alerts_create_rule(payload: dict = Body(...)) -> JSONResponse:
+        try:
+            rule = app.state.alerts.create_rule(
+                payload.get("kind"), payload.get("label", ""),
+                payload.get("params") or {}, payload.get("enabled", True),
+            )
+        except ValueError as e:
+            raise HTTPException(422, str(e)) from None
+        return JSONResponse(rule)
+
+    @app.patch("/api/alerts/rules/{rule_id}")
+    async def alerts_patch_rule(rule_id: int, payload: dict = Body(...)) -> JSONResponse:
+        if "enabled" not in payload:
+            raise HTTPException(422, "PATCH body needs 'enabled'")
+        if not app.state.alerts.set_enabled(rule_id, bool(payload["enabled"])):
+            raise HTTPException(404, "unknown rule")
+        return JSONResponse(app.state.alerts.get_rule(rule_id))
+
+    @app.delete("/api/alerts/rules/{rule_id}")
+    async def alerts_delete_rule(rule_id: int) -> JSONResponse:
+        if not app.state.alerts.delete_rule(rule_id):
+            raise HTTPException(404, "unknown rule")
+        return JSONResponse({"ok": True})
+
+    @app.get("/api/alerts/hits")
+    async def alerts_hits(limit: int = 50) -> JSONResponse:
+        return JSONResponse(app.state.alerts.recent_hits(max(1, min(limit, 500))))
+
+    # ---- correlation readout ----------------------------------------
+    @app.get("/api/correlate")
+    async def correlate_readout(bbox: str, days: int = 90) -> JSONResponse:
+        try:
+            s, w, n, e = (float(x) for x in bbox.split(","))
+        except ValueError:
+            raise HTTPException(422, "bbox must be 's,w,n,e'") from None
+        return JSONResponse(
+            correlate.readout(app.state.db, [[s, w], [n, e]], max(7, min(days, 3650)))
+        )
 
     # ---- WebSocket ----------------------------------------------------
     @app.websocket("/ws")

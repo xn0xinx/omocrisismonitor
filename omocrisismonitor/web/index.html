@@ -14,6 +14,7 @@
   <div id="conflict-badge" class="badge badge-2" hidden></div>
   <aside id="detail" hidden></aside>
   <aside id="fuel-panel" class="mono" hidden></aside>
+  <aside id="alerts-panel" class="mono" hidden></aside>
   <div id="scrubber" class="mono" hidden></div>
 
   <div id="ai-drawer" hidden>
@@ -45,11 +46,11 @@
     <button class="layer" data-layer="conflict" title="Phase 2">CONFLICT</button>
     <button class="layer" data-layer="fuel"     title="Phase 3">FUEL</button>
     <button class="layer" data-layer="ai"       title="Phase 4">AI</button>
-    <button class="layer" data-layer="alerts"   disabled title="Phase 5">ALERTS</button>
+    <button class="layer" data-layer="alerts"   title="Phase 5">ALERTS</button>
   </nav>
 
   <footer id="statusline" class="mono">
-    <span id="phase">phase 4 &middot; ai</span>
+    <span id="phase">phase 5 &middot; alerts</span>
     <span class="grow"></span>
     <span id="msg">booting&hellip;</span>
   </footer>
@@ -60,5 +61,6 @@
   <script src="conflict.js"></script>
   <script src="fuel.js"></script>
   <script src="ai.js"></script>
+  <script src="alerts.js"></script>
 </body>
 </html>

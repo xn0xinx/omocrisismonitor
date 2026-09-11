@@ -182,6 +182,24 @@ class AisService:
             "notable": notable[:8],
         }
 
+    def count_in_box(self, bbox: list[list[float]], category: str | None = None) -> int:
+        """Vessels currently held (i.e. within whatever viewport is subscribed)
+        that fall inside `bbox`, for the `ship_box` alert rule (Phase 5). AIS is
+        viewport-scoped — a box outside every viewport the user has opened will
+        always read 0, by design (see the SPEC's "regions the user has had
+        open" limitation)."""
+        (s, w), (n, e) = bbox
+        n_matched = 0
+        for v in self.vessels.values():
+            if v.lat is None or v.lon is None:
+                continue
+            if not (s <= v.lat <= n and w <= v.lon <= e):
+                continue
+            if category and category != "any" and aismeta.type_info(v.type)[1] != category:
+                continue
+            n_matched += 1
+        return n_matched
+
     # ---- internals ----------------------------------------------------
     @staticmethod
     def _span_too_big(bbox: list[list[float]]) -> bool:

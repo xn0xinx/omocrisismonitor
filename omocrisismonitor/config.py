@@ -92,7 +92,8 @@ DEFAULTS: dict = {
     },
     "alerts": {
         "enabled": True,              # Q17: basic watch/alert system in v1
-        "notify": True,               # desktop notifications
+        "notify": True,               # desktop notifications (notify-send)
+        "poll_s": 30,                 # how often rules are evaluated
     },
 }
 
