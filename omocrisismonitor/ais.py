@@ -158,6 +158,30 @@ class AisService:
         v = self.vessels.get(mmsi)
         return v.public() if v else None
 
+    def vessel_count(self) -> int:
+        return len(self.vessels)
+
+    def summary(self) -> dict[str, Any]:
+        """Compact snapshot of the current viewport, for the AI sidebar (Phase 4)
+        — not the per-vessel detail the map layer already has client-side."""
+        cats: dict[str, int] = {}
+        notable = []
+        for v in self.vessels.values():
+            _, cat = aismeta.type_info(v.type)
+            cats[cat] = cats.get(cat, 0) + 1
+            if cat in ("tanker", "special"):
+                notable.append({
+                    "name": v.name or f"MMSI {v.mmsi}",
+                    "type": aismeta.type_info(v.type)[0],
+                    "flag": aismeta.flag_for_mmsi(v.mmsi),
+                })
+        return {
+            "count": len(self.vessels),
+            "by_category": cats,
+            "viewport": self._bbox,
+            "notable": notable[:8],
+        }
+
     # ---- internals ----------------------------------------------------
     @staticmethod
     def _span_too_big(bbox: list[list[float]]) -> bool:

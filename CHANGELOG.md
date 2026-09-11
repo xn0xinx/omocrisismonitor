@@ -1,5 +1,76 @@
 # Changelog
 
+## 0.5.1 — 2026-09-10 — pluggable AI backend (Claude / Gemini)
+
+- `ai.py` — reworked to a pluggable `AiBackend` (same pattern as fuel.py's
+  `CrudeSource`): `ClaudeBackend` (verified, `claude -p`) and `GeminiBackend`
+  (`gemini -p`, folds the system prompt into the user prompt since the CLI has
+  no `--system-prompt` flag). **`GeminiBackend.available = False`** — `gemini
+  -p` hung indefinitely in testing (45s timeout, twice, no competing process),
+  most likely a stale OAuth token trying to refresh rather than failing fast.
+  `run()` refuses with a clear message pointing at the fix until someone
+  confirms `gemini -p "hi" -o json --approval-mode plan` returns promptly
+  after a fresh `gemini` interactive login, then flips the flag. Picking it
+  before then fails cleanly via `ai_status` `error` and leaves the last good
+  summary untouched — verified live.
+- `AiService` gains `backend_key` / `backend` / `list_backends()` /
+  `set_backend()`. `cfg.ai.backend` picks the default (falls back to `claude`
+  if misconfigured). The existing `runner=` test seam is unchanged and now
+  bypasses backend selection entirely (production code never sets it).
+- `server.py` — `GET /api/bootstrap`'s `ai` block carries `backend` +
+  `backends` (key/label/available); `POST /api/ai/backend {key}` switches
+  (422 on an unknown key).
+- `web/ai.js` — a backend `<select>` in the drawer header, populated from
+  bootstrap, disabled options for unavailable backends; switching posts the
+  change and immediately requests a refresh so the pick visibly takes effect.
+- `config` / `config.example.toml` — `[ai]` adds `backend`, `gemini_bin`,
+  `gemini_model` (empty = CLI default).
+- Tests: `test_ai.py` covers backend listing/switching/fallback and the
+  gemini refusal; `test_server.py` covers the new bootstrap fields + the
+  `/api/ai/backend` route. 75 pass.
+
+## 0.5.0 — 2026-09-10 — Phase 4: AI sidebar
+
+- `ai.py` — `AiService`: a one-shot `claude -p` call through the user's own
+  subscription (no API key), tools disabled (`--disallowedTools`), no session
+  persistence, `--output-format json` parsed for `result` / `is_error` /
+  `total_cost_usd`. Prompt gathers the last day of conflict activity by
+  theatre (+ a couple of live-fetched descriptions for the busiest theatres via
+  `ConflictService.recent_highlights`), the vessels currently in the AIS
+  viewport (`AisService.summary`), and the latest crude + retail freshness
+  (`FuelService.snapshot`) — all optional, so the service degrades gracefully
+  if a layer is off. Auto-refreshes when a cheap signature (event count / WTI
+  price / ship count) changes **and** `ai.min_interval_s` has elapsed;
+  always available on demand via `refresh()`. Never crashes the app on a bad
+  run — emits `ai_status` `error` and keeps the last good summary. Subprocess
+  runner injectable (`runner=`) for tests.
+- `ais.py` / `conflict.py` — added `AisService.summary()`/`vessel_count()` and
+  `ConflictService.recent_highlights()` as the AI's context sources.
+- `server.py` — `AiService` in the lifespan, wired to the other three services.
+  `GET /api/ai/summary` (last result + busy flag), `POST /api/ai/refresh`
+  (fire-and-forget — a `claude` round trip can take tens of seconds; the result
+  rides the `ai_summary` WS event, not the HTTP response). `ai` gate now tracks
+  `cfg.ai.enabled` instead of a hardcoded `False`.
+- `web/ai.js` — a terminal-style drawer that pulls up from the bottom, full
+  width: a status dot (green idle, pulsing amber while thinking), model/reason/
+  age/cost meta line, refresh + close buttons, scrollable body. Hydrates any
+  existing summary on load without forcing a run; listens for `ai_status` /
+  `ai_summary` so it stays live even if another window (or the auto-loop)
+  triggered the refresh. Deliberately **not** wired to the shared `dismiss`
+  event — that fires on every AIS/conflict marker click and would otherwise
+  slam the drawer shut mid-read.
+- `index.html` / `app.css` — load `ai.js`, un-gate AI, drawer + terminal
+  styling.
+- Verified live: `POST /api/ai/refresh` → 6 s → a grounded, non-alarmist,
+  ~85-word synthesis correctly citing the real WTI/Brent move, $0.05
+  (informational; subscription auth, not billed).
+- Tests: `test_ai.py` (change-detection gate, refresh happy path / runner
+  error / reentrancy, prompt content, clean start/stop) with fake
+  ais/conflict/fuel stand-ins — the real `claude` subprocess path
+  (`_default_runner`) is `pragma: no cover`, exercised only by the live smoke
+  test above. `test_ais.py` / `test_conflict.py` cover the new context
+  methods; `test_server.py` covers the two `/api/ai/*` routes. 68 pass.
+
 ## 0.4.0 — 2026-09-10 — Phase 3: Fuel layer (crude + retail choropleth)
 
 - `fuel.py` — `FuelService` with two independent loops:

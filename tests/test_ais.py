@@ -132,6 +132,26 @@ def test_ingest_ignores_null_island_and_bad_json():
     assert svc.vessel(211000000) is None or 211000000 not in svc._dirty
 
 
+# ---- summary (Phase 4 / AI sidebar context) --------------------
+
+def test_summary_counts_categories_and_flags_notable():
+    svc = AisService(_cfg(), FakeHub(), None)
+    svc._ingest(_pos(211111111, 53.5, 8.1))
+    svc._ingest(_static(211111111, typ=80))            # tanker -> notable
+    svc._ingest(_pos(367123456, 30.0, -90.0))
+    svc._ingest(_static(367123456, typ=70))            # cargo -> not notable
+    svc.set_view([[50.0, 5.0], [56.0, 12.0]])
+
+    s = svc.vessel(211111111)  # ensure ingest landed before summarising
+    assert s is not None
+    summ = svc.summary()
+    assert summ["count"] == 2
+    assert summ["by_category"] == {"tanker": 1, "cargo": 1}
+    assert summ["viewport"] == [[50.0, 5.0], [56.0, 12.0]]
+    assert {v["flag"] for v in summ["notable"]} == {"DE"}
+    assert svc.vessel_count() == 2
+
+
 # ---- viewport → subscription --------------------------------------
 
 def test_subscription_json_shape():

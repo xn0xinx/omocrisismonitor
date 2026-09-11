@@ -295,6 +295,40 @@ class ConflictService:
         return {"type": "FeatureCollection", "features": feats,
                 "window": {"since_sort": since, "until_sort": until}}
 
+    async def recent_highlights(
+        self, days: int = 1, max_theatres: int = 4, per_theatre: int = 2
+    ) -> dict:
+        """Event counts per theatre since `days` ago, plus a couple of live-fetched
+        descriptions for the busiest theatres — for the AI sidebar (Phase 4).
+        Not hot-path: only called on an AI refresh, gated by ai.min_interval_s."""
+        if self.con is None:
+            return {"since_sort": _today_sort() - days, "by_theatre": {}, "highlights": {}}
+        since = _today_sort() - days
+        rows = self.con.execute(
+            "SELECT conflict, COUNT(*) c FROM conflict_event WHERE date_sort >= ? "
+            "GROUP BY conflict ORDER BY c DESC",
+            (since,),
+        ).fetchall()
+        by_theatre = {r["conflict"]: r["c"] for r in rows}
+        highlights: dict[str, list[str]] = {}
+        for conflict in list(by_theatre)[:max_theatres]:
+            ids = [
+                r["ext_id"]
+                for r in self.con.execute(
+                    "SELECT ext_id FROM conflict_event WHERE conflict=? AND date_sort>=? "
+                    "ORDER BY date_sort DESC LIMIT ?",
+                    (conflict, since, per_theatre),
+                )
+            ]
+            descs = []
+            for ext_id in ids:
+                d = await self.detail(ext_id)
+                if d and d.get("description"):
+                    descs.append(d["description"][:220].strip())
+            if descs:
+                highlights[conflict] = descs
+        return {"since_sort": since, "by_theatre": by_theatre, "highlights": highlights}
+
     async def detail(self, ext_id: str) -> dict | None:
         hit = self._detail_cache.get(ext_id)
         if hit and time.time() - hit[0] < DETAIL_TTL:

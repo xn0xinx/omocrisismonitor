@@ -38,8 +38,11 @@ eia_key = ""               # set -> use the EIA API for crude instead (official,
 
 [ai]
 enabled = true
+backend = "claude"         # "claude" | "gemini" — pick which CLI runs the synthesis
 claude_bin = "claude"      # uses your Claude subscription — no API key
 model = "claude-sonnet-5"
+gemini_bin = "gemini"      # uses your Gemini CLI login — no API key
+gemini_model = ""          # empty = let the gemini CLI pick its default
 auto_refresh = true        # regenerate the sidebar on notable change
 min_interval_s = 900
 

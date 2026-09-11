@@ -1,8 +1,8 @@
 """FastAPI app: serves the map window, a WebSocket event stream, and a small
 REST surface. Phase 0 wired the shell (map, theme sync, health); Phase 1 the
 AIS service + `/api/view` / `/api/vessel`; Phase 2 the conflict service +
-`/api/conflict/*`; Phase 3 the fuel service + `/api/fuel/*`. The AI sidebar
-(Phase 4) attaches to the same hub.
+`/api/conflict/*`; Phase 3 the fuel service + `/api/fuel/*`; Phase 4 the AI
+sidebar + `/api/ai/*`. Alerts (Phase 5) attach to the same hub.
 """
 from __future__ import annotations
 
@@ -19,13 +19,14 @@ from fastapi.responses import HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from . import db
+from .ai import AiService
 from .ais import AisService
 from .conflict import ConflictService, _iso_to_sort
 from .config import config_path, db_path
 from .fuel import FuelService
 
 WEB = files("omocrisismonitor").joinpath("web")
-__version__ = "0.4.0"
+__version__ = "0.5.1"
 
 
 class Hub:
@@ -89,10 +90,15 @@ def create_app(cfg: SimpleNamespace) -> FastAPI:
         app.state.ais = AisService(cfg, app.state.hub, app.state.db)
         app.state.conflict = ConflictService(cfg, app.state.hub, app.state.db)
         app.state.fuel = FuelService(cfg, app.state.hub, app.state.db)
+        app.state.ai = AiService(
+            cfg, app.state.hub,
+            ais=app.state.ais, conflict=app.state.conflict, fuel=app.state.fuel,
+        )
         watcher = asyncio.create_task(_watch_theme(app))
         await app.state.ais.start()
         await app.state.conflict.start()
         await app.state.fuel.start()
+        await app.state.ai.start()
         try:
             yield
         finally:
@@ -102,6 +108,7 @@ def create_app(cfg: SimpleNamespace) -> FastAPI:
             await app.state.ais.stop()
             await app.state.conflict.stop()
             await app.state.fuel.stop()
+            await app.state.ai.stop()
             app.state.db.close()
 
     app.router.lifespan_context = lifespan
@@ -156,7 +163,7 @@ def create_app(cfg: SimpleNamespace) -> FastAPI:
                     "ais": True,
                     "conflict": True,
                     "fuel": True,
-                    "ai": False,
+                    "ai": bool(cfg.ai.enabled),
                     "alerts": False,
                 },
                 "ais": {
@@ -170,6 +177,13 @@ def create_app(cfg: SimpleNamespace) -> FastAPI:
                 "fuel": {
                     "unit": cfg.ui.fuel_unit,
                     "currency": cfg.ui.units_currency,
+                },
+                "ai": {
+                    "auto_refresh": cfg.ai.auto_refresh,
+                    "min_interval_s": cfg.ai.min_interval_s,
+                    "model": cfg.ai.model,
+                    "backend": app.state.ai.backend_key,
+                    "backends": app.state.ai.list_backends(),
                 },
             }
         )
@@ -251,6 +265,30 @@ def create_app(cfg: SimpleNamespace) -> FastAPI:
         if kind not in ("gasoline", "diesel"):
             raise HTTPException(422, "kind must be gasoline or diesel")
         return JSONResponse(app.state.fuel.retail_map(kind))
+
+    # ---- AI sidebar -------------------------------------------------
+    @app.get("/api/ai/summary")
+    async def ai_summary() -> JSONResponse:
+        return JSONResponse({"summary": app.state.ai.summary, "busy": app.state.ai.busy})
+
+    @app.post("/api/ai/refresh")
+    async def ai_refresh() -> JSONResponse:
+        """Fire-and-forget — an AI CLI round trip can take tens of seconds; the
+        result rides the `ai_summary` WS event, not this response."""
+        if not cfg.ai.enabled:
+            raise HTTPException(409, "AI sidebar is disabled in config.toml")
+        if not app.state.ai.busy:
+            asyncio.create_task(app.state.ai.refresh(reason="manual"))
+        return JSONResponse({"ok": True, "state": "thinking"})
+
+    @app.post("/api/ai/backend")
+    async def ai_set_backend(payload: dict = Body(...)) -> JSONResponse:
+        key = payload.get("key")
+        try:
+            app.state.ai.set_backend(key)
+        except KeyError:
+            raise HTTPException(422, f"unknown backend {key!r}") from None
+        return JSONResponse({"ok": True, "backend": app.state.ai.backend_key})
 
     # ---- WebSocket ----------------------------------------------------
     @app.websocket("/ws")

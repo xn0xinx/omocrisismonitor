@@ -187,6 +187,15 @@ async def test_bootstrap_reports_counts_and_span(tmp_path):
     assert b["factions"]["ukraine"][0]["color"] == "#0057B7"
 
 
+async def test_recent_highlights_for_ai_sidebar(tmp_path):
+    svc, con = _svc(tmp_path)
+    await svc.refresh()
+    h = await svc.recent_highlights(days=45)   # fixture events go back to NOW_SORT-40
+    assert h["by_theatre"] == {"ukraine": 2, "ven": 1}   # busiest first isn't required here
+    assert h["highlights"]["ukraine"] == ["test event", "test event"]  # per_theatre=2
+    assert h["highlights"]["ven"] == ["test event"]                    # only 1 event exists
+
+
 async def test_detail_fetch_and_cache(tmp_path):
     svc, con = _svc(tmp_path)
     d = await svc.detail("abc-123")

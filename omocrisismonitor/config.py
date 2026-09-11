@@ -66,11 +66,17 @@ DEFAULTS: dict = {
         "eia_key": "",
     },
     "ai": {
-        # AI sidebar runs through the `claude` CLI on the user's subscription
-        # (no API key). Disabled until Phase 4.
+        # AI sidebar runs through a CLI on the user's own subscription/login
+        # (no API key). Pluggable backend — "claude" is the only one verified
+        # working; "gemini" is wired but unconfirmed on this box (gemini -p
+        # hung in testing, likely a stale OAuth token — fix with a plain
+        # `gemini` login, then flip this).
         "enabled": True,
+        "backend": "claude",           # "claude" | "gemini"
         "claude_bin": "claude",
         "model": "claude-sonnet-5",
+        "gemini_bin": "gemini",
+        "gemini_model": "",            # empty = let the gemini CLI pick its default
         "auto_refresh": True,          # regenerate on notable change (Q14 = c)
         "min_interval_s": 900,         # never more often than this
     },

@@ -40,6 +40,12 @@ def client(tmp_path, monkeypatch):
     for m in ("_tick_crude", "_backfill_crude", "_scrape_retail"):
         monkeypatch.setattr(f"omocrisismonitor.fuel.FuelService.{m}", _noop)
 
+    # ...and the AI sidebar: never actually shell out to `claude` in a test.
+    async def _no_run(self, prompt, system):
+        return "stub", {"cost_usd": 0.0}
+
+    monkeypatch.setattr("omocrisismonitor.ai.ClaudeBackend.run", _no_run)
+
     cfg = config.load(tmp_path / "none.toml")
     cfg.map.maptiler_key = "TESTKEY"
     with TestClient(create_app(cfg)) as c:
@@ -62,13 +68,19 @@ def test_bootstrap_shape(client):
     assert j["map"]["maptiler_key"] == "TESTKEY"
     assert len(j["map"]["center"]) == 2
     assert set(j["layers"]) == {"ais", "conflict", "fuel", "ai", "alerts"}
-    # phases 1-3 live, everything after still gated off
-    live = ("ais", "conflict", "fuel")
+    # phases 1-4 live, alerts (phase 5) still gated off
+    live = ("ais", "conflict", "fuel", "ai")
     assert all(j["layers"][k] is True for k in live)
     assert all(v is False for k, v in j["layers"].items() if k not in live)
     assert j["ais"]["throttle_ms"] > 0 and j["ais"]["stale_after_s"] > 0
     assert j["conflict"]["window_days"] > 0 and j["conflict"]["refresh_h"] > 0
     assert j["fuel"]["unit"] and j["fuel"]["currency"]
+    assert j["ai"]["model"] and j["ai"]["min_interval_s"] > 0
+    assert j["ai"]["backend"] == "claude"
+    keys = {b["key"] for b in j["ai"]["backends"]}
+    assert keys == {"claude", "gemini"}
+    assert next(b for b in j["ai"]["backends"] if b["key"] == "claude")["available"] is True
+    assert next(b for b in j["ai"]["backends"] if b["key"] == "gemini")["available"] is False
 
 
 def test_view_accepts_bbox(client):
@@ -147,6 +159,26 @@ def test_fuel_retail_empty_map(client):
 
 def test_fuel_retail_rejects_bad_kind(client):
     assert client.get("/api/fuel/retail?kind=kerosene").status_code == 422
+
+
+def test_ai_summary_empty_before_any_refresh(client):
+    j = client.get("/api/ai/summary").json()
+    assert j["summary"] is None and j["busy"] is False
+
+
+def test_ai_refresh_is_fire_and_forget(client):
+    r = client.post("/api/ai/refresh")
+    assert r.status_code == 200 and r.json() == {"ok": True, "state": "thinking"}
+
+
+def test_ai_set_backend(client):
+    r = client.post("/api/ai/backend", json={"key": "gemini"})
+    assert r.status_code == 200 and r.json() == {"ok": True, "backend": "gemini"}
+    assert client.get("/api/bootstrap").json()["ai"]["backend"] == "gemini"
+
+
+def test_ai_set_backend_rejects_unknown(client):
+    assert client.post("/api/ai/backend", json={"key": "grok"}).status_code == 422
 
 
 def test_theme_css_falls_back_to_bundled(client):

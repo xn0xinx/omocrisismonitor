@@ -16,6 +16,20 @@
   <aside id="fuel-panel" class="mono" hidden></aside>
   <div id="scrubber" class="mono" hidden></div>
 
+  <div id="ai-drawer" hidden>
+    <header>
+      <span class="term-dot"></span>
+      <span class="nm">AI SYNTHESIS</span>
+      <span id="ai-cursor" class="dim" hidden>&#9612; thinking&hellip;</span>
+      <select id="ai-backend" class="mono" title="AI backend"></select>
+      <span id="ai-meta" class="dim mono"></span>
+      <span class="grow"></span>
+      <button id="ai-refresh" title="Refresh now">&#8635;</button>
+      <button id="ai-close" title="Close">&times;</button>
+    </header>
+    <pre id="ai-body" class="mono"></pre>
+  </div>
+
   <header id="topbar">
     <span class="brand">OMO<b>CRISIS</b>MONITOR</span>
     <span id="conn" class="pill" data-state="wait"><i></i><span>link</span></span>
@@ -30,12 +44,12 @@
     <button class="layer" data-layer="ais"      title="Phase 1">AIS</button>
     <button class="layer" data-layer="conflict" title="Phase 2">CONFLICT</button>
     <button class="layer" data-layer="fuel"     title="Phase 3">FUEL</button>
-    <button class="layer" data-layer="ai"       disabled title="Phase 4">AI</button>
+    <button class="layer" data-layer="ai"       title="Phase 4">AI</button>
     <button class="layer" data-layer="alerts"   disabled title="Phase 5">ALERTS</button>
   </nav>
 
   <footer id="statusline" class="mono">
-    <span id="phase">phase 3 &middot; fuel</span>
+    <span id="phase">phase 4 &middot; ai</span>
     <span class="grow"></span>
     <span id="msg">booting&hellip;</span>
   </footer>
@@ -45,5 +59,6 @@
   <script src="ais.js"></script>
   <script src="conflict.js"></script>
   <script src="fuel.js"></script>
+  <script src="ai.js"></script>
 </body>
 </html>

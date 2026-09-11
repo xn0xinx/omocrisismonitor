@@ -280,3 +280,53 @@ body.fs:hover #scrubber { opacity: 1; }
 
 body.fs #fuel-panel { opacity: 0; transition: opacity .3s; }
 body.fs:hover #fuel-panel { opacity: 1; }
+
+/* ---- AI: terminal-style pull-out drawer (bottom, full width) ------ */
+#ai-drawer {
+  position: fixed; left: 0; right: 0; bottom: 58px; z-index: 10;
+  max-height: 34vh; display: flex; flex-direction: column;
+  background: color-mix(in srgb, var(--ocm-bg) 94%, transparent);
+  border-top: 1px solid var(--ocm-border); border-bottom: 1px solid var(--ocm-border);
+  backdrop-filter: blur(8px);
+}
+#ai-drawer header {
+  display: flex; align-items: center; gap: 8px; padding: 6px 12px; flex: none;
+  border-bottom: 1px solid var(--ocm-border);
+}
+#ai-drawer .term-dot {
+  flex: none; width: 7px; height: 7px; border-radius: 50%;
+  background: var(--ocm-ok); box-shadow: 0 0 6px var(--ocm-ok);
+}
+#ai-drawer.thinking .term-dot {
+  background: var(--ocm-warn); box-shadow: 0 0 6px var(--ocm-warn);
+  animation: pulse 1s ease-in-out infinite;
+}
+#ai-drawer header .nm {
+  flex: none; font: 600 11px/1 "JetBrainsMono Nerd Font", monospace;
+  letter-spacing: .16em; color: var(--ocm-dim);
+}
+#ai-cursor { flex: none; font-size: 11px; animation: blink 1s step-end infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+#ai-backend {
+  flex: none; padding: 2px 6px; border-radius: 3px; cursor: pointer;
+  background: var(--ocm-surface); border: 1px solid var(--ocm-border);
+  color: var(--ocm-fg); font: 10px/1.4 "JetBrainsMono Nerd Font", monospace;
+  letter-spacing: .04em;
+}
+#ai-backend:disabled { opacity: .5; cursor: default; }
+#ai-meta { flex: none; font-size: 10px; letter-spacing: .04em; }
+#ai-drawer header button {
+  flex: none; width: 22px; height: 22px; line-height: 1;
+  background: transparent; border: 1px solid var(--ocm-border); border-radius: 3px;
+  color: var(--ocm-dim); cursor: pointer; font: inherit; font-size: 13px;
+}
+#ai-drawer header button:hover:not(:disabled) { color: var(--ocm-accent); border-color: var(--ocm-accent); }
+#ai-drawer header button:disabled { opacity: .4; cursor: default; }
+#ai-body {
+  margin: 0; padding: 12px 16px; overflow-y: auto; flex: 1 1 auto;
+  white-space: pre-wrap; font: 12px/1.6 "JetBrainsMono Nerd Font", monospace;
+  color: var(--ocm-fg); letter-spacing: .01em;
+}
+
+body.fs #ai-drawer { opacity: 0; transition: opacity .3s; }
+body.fs:hover #ai-drawer { opacity: 1; }
